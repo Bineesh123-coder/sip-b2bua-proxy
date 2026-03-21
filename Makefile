@@ -1,0 +1,26 @@
+CXX = g++
+CXXFLAGS = -std=c++17 -Wall -Wextra -g -Iinclude
+LIBS = -lpcap
+
+SRC = \
+	src/main.cpp \
+	src/sip_server.cpp \
+	src/udp_socket.cpp \
+	src/thread.cpp \
+	src/logger.cpp \
+
+OBJ = $(SRC:.cpp=.o)
+
+TARGET = sip_proxy
+
+all: $(TARGET)
+
+$(TARGET): $(OBJ)
+	$(CXX) $(CXXFLAGS) $(OBJ) -o $(TARGET) $(LIBS)
+
+# 🔥 FIXED RULE
+src/%.o: src/%.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+clean:
+	rm -f $(OBJ) $(TARGET)
