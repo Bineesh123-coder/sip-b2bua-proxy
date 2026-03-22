@@ -8,6 +8,9 @@ SRC = \
 	src/udp_socket.cpp \
 	src/thread.cpp \
 	src/logger.cpp \
+	src/sip_parser.cpp \
+	src/call_session.cpp \
+	src/call_session_manager.cpp
 
 OBJ = $(SRC:.cpp=.o)
 
