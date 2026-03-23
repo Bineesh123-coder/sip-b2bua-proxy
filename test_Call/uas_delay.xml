@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<scenario name="UAS CANCEL TEST">
+
+  <!-- Receive INVITE -->
+  <recv request="INVITE"/>
+
+  <!-- Send 180 Ringing -->
+  <send>
+    <![CDATA[
+    SIP/2.0 180 Ringing
+    Via: [last_Via:]
+    From: [last_From:]
+    To: [last_To:];tag=uas123
+    Call-ID: [call_id]
+    CSeq: 1 INVITE
+    Content-Length: 0
+    ]]>
+  </send>
+
+  <!-- Wait for CANCEL (MANDATORY) -->
+  <recv request="CANCEL"/>
+
+  <!-- Send 200 OK for CANCEL -->
+  <send>
+    <![CDATA[
+    SIP/2.0 200 OK
+    Via: [last_Via:]
+    From: [last_From:]
+    To: [last_To:];tag=uas123
+    Call-ID: [call_id]
+    CSeq: 1 CANCEL
+    Content-Length: 0
+    ]]>
+  </send>
+
+  <!-- Send 487 for INVITE -->
+  <send>
+    <![CDATA[
+    SIP/2.0 487 Request Terminated
+    Via: [last_Via:]
+    From: [last_From:]
+    To: [last_To:];tag=uas123
+    Call-ID: [call_id]
+    CSeq: 1 INVITE
+    Content-Length: 0
+    ]]>
+  </send>
+
+</scenario>

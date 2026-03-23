@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<scenario name="UAC CANCEL TEST">
+
+  <send>
+    <![CDATA[
+    INVITE sip:[service]@[remote_ip]:[remote_port] SIP/2.0
+    Via: SIP/2.0/UDP [local_ip]:[local_port];branch=[branch]
+    From: <sip:sipp@[local_ip]>;tag=[call_number]
+    To: <sip:[service]@[remote_ip]>
+    Call-ID: [call_id]
+    CSeq: 1 INVITE
+    Contact: <sip:sipp@[local_ip]:[local_port]>
+    Max-Forwards: 70
+    Content-Length: 0
+    ]]>
+  </send>
+
+  <!-- MUST BE MANDATORY -->
+  <recv response="180"/>
+
+  <pause milliseconds="1000"/>
+
+  <send>
+    <![CDATA[
+    CANCEL sip:[service]@[remote_ip]:[remote_port] SIP/2.0
+    Via: SIP/2.0/UDP [local_ip]:[local_port];branch=[branch]
+    From: <sip:sipp@[local_ip]>;tag=[call_number]
+    To: <sip:[service]@[remote_ip]>
+    Call-ID: [call_id]
+    CSeq: 1 CANCEL
+    Max-Forwards: 70
+    Content-Length: 0
+    ]]>
+  </send>
+
+  <recv response="200"/>
+  <recv response="487"/>
+
+</scenario>

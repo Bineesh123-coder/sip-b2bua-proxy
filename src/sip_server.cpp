@@ -239,12 +239,32 @@ void SIPServer::processSipMessage(const std::string& sipMsg, const std::string& 
                 std::cout << logMsg << std::endl;
                 m_pDailyLog->WriteLog(kDebug, logMsg);
             }
+            else if (statusLine.find("200") != std::string::npos && cseqm.find("CANCEL") != std::string::npos)
+            {   
+                session->state = "CANCELLING";
+                logMsg = "[CALL " + callID + "] State changed to " + session->state;
+                std::cout << logMsg << std::endl;
+                m_pDailyLog->WriteLog(kDebug, logMsg);
+            }
             else if (statusLine.find("200") != std::string::npos)
             {
                 session->state = "CONNECTED";
                 logMsg = "[CALL " + callID + "] State changed to " + session->state;
                 std::cout << logMsg << std::endl;
                 m_pDailyLog->WriteLog(kDebug, logMsg);
+            }
+            else if (statusLine.find("487") != std::string::npos)
+            {
+                session->state = "TERMINATED";
+                logMsg = "[CALL " + callID + "] State changed to " + session->state;
+                std::cout << logMsg << std::endl;
+                m_pDailyLog->WriteLog(kDebug, logMsg);
+                m_sessionManager.removeSession(callID);
+
+                logMsg  = "[CALL " + callID + "] Session deleted after 487 Terminated msg";
+                std::cout << logMsg << std::endl;
+                m_pDailyLog->WriteLog(kDebug, logMsg);
+                
             }
         }
 
@@ -281,6 +301,10 @@ void SIPServer::processSipMessage(const std::string& sipMsg, const std::string& 
         else if (method == "BYE")
         {
             processByeMessage(parser,sipMsg,addr_ip,port);
+        }
+        else if (method == "CANCEL")
+        {
+            processCancelMessage(parser,sipMsg,addr_ip,port);
         }
         
     }
@@ -483,6 +507,78 @@ void SIPServer::processByeMessage(const SIPParser& parser,
     }
 }
 
+void SIPServer::processCancelMessage(const SIPParser& parser,
+                                 const std::string &sipMsg,
+                                 const std::string& addr_ip,
+                                 uword port)
+{
+    try {
+
+        
+
+        std::string callID = parser.getCallID();
+
+        CallSession* session = m_sessionManager.getSession(callID);
+
+        if (!session)
+        {
+            logMsg ="[WARN] CANCEL: Session not found\n";
+            std::cout<<logMsg<<std::endl;
+            m_pDailyLog->WriteLog(kDebug, logMsg);
+            return;
+        }
+
+        logMsg ="[CALL " + callID + "] CANCEL received from CALLER "
+                  + addr_ip +":" + std::to_string(port);
+        std::cout<<logMsg<<std::endl;
+        m_pDailyLog->WriteLog(kDebug, logMsg);
+
+        std::string OK_200_msg = build_200_OK(parser);
+
+        m_pUDPSocket->send(OK_200_msg.c_str(), OK_200_msg.length(),
+                inet_addr(session->callerIP.c_str()),
+                session->callerPort);
+
+        logMsg = "Sending 200 ok message to "+ session->callerIP+":"+ std::to_string(session->callerPort);
+        std::cout<<logMsg<<std::endl;
+        m_pDailyLog->WriteLog(kDebug, logMsg);
+
+        //  Direction check
+        if (session->callerIP == addr_ip && session->callerPort == port)
+        {
+            // Caller → send to callee
+            m_pUDPSocket->send(sipMsg.c_str(), sipMsg.length(),
+                inet_addr(session->targetIP.c_str()),
+                session->targetPort);
+
+            logMsg ="[CALL " + callID + "] CANCEL forwarded to CALLEE";
+            std::cout<<logMsg<<std::endl;
+            m_pDailyLog->WriteLog(kDebug, logMsg);
+        }
+        else
+        {
+            // Callee → send to caller
+            m_pUDPSocket->send(sipMsg.c_str(), sipMsg.length(),
+                inet_addr(session->callerIP.c_str()),
+                session->callerPort);
+
+            logMsg ="[CALL " + callID + "] CANCEL forwarded to CALLER";
+            std::cout<<logMsg<<std::endl;
+            m_pDailyLog->WriteLog(kDebug, logMsg);
+        }
+
+        
+
+
+    }
+    catch (const std::exception& e)
+    {
+        m_pDailyLog->WriteLog(kGeneralError,
+            "ERROR:processByeMessage " + std::string(e.what()));
+    }
+}
+
+
 // void SIPServer::processOptionsMessage(const std::string& data, const std::string& ip)
 // {
 //     std::cout << "Processing OPTIONS from " << ip << std::endl;
@@ -499,6 +595,20 @@ std::string SIPServer::build100Trying(const SIPParser& parser)
 {
     std::string response =
         "SIP/2.0 100 Trying\r\n"
+        "Via: " + parser.getVia() + "\r\n"
+        "From: " + parser.getFrom() + "\r\n"
+        "To: " + parser.getTo() + "\r\n"
+        "Call-ID: " + parser.getCallID() + "\r\n"
+        "CSeq: " + parser.getCSeq() + "\r\n"
+        "Content-Length: 0\r\n\r\n";
+
+    return response;
+}
+
+std::string SIPServer::build_200_OK(const SIPParser& parser)
+{
+    std::string response =
+        "SIP/2.0 200 OK\r\n"
         "Via: " + parser.getVia() + "\r\n"
         "From: " + parser.getFrom() + "\r\n"
         "To: " + parser.getTo() + "\r\n"

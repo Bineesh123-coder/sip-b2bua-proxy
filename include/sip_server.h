@@ -36,8 +36,14 @@ class SIPServer : public Thread{
                                  const std::string &sipMsg,
                                  const std::string& addr_ip,
                                  uword port);
+    
+    void processCancelMessage(const SIPParser& parser,
+                                 const std::string &sipMsg,
+                                 const std::string& addr_ip,
+                                 uword port);
     //void processOptionsMessage(const std::string &data, const std::string &ip);
     std::string build100Trying(const SIPParser& parser);
+    std::string build_200_OK(const SIPParser& parser);
 
     void debug_testing();
 

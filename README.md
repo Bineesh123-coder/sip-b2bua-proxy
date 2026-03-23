@@ -115,3 +115,22 @@ sipp -sn uas -p 5061
 🧪 Terminal 3 (UAC → ONLY ONE CALL)
 
 sipp -sn uac 127.0.0.1:5060 -m 1 -trace_msg
+
+for cancel 
+
+sipp -sf uas_delay.xml -p 5061
+
+./sip_proxy
+
+sipp -sn uac 127.0.0.1:5060 -m 1 -timeout 2000 -trace_msg
+
+
+# Terminal 1
+sipp -sf uas_delay.xml -p 5061
+
+# Terminal 2
+./sip_proxy
+
+# Terminal 3
+sipp -sf uac_cancel.xml 127.0.0.1:5060 -p 5062 -m 1 -trace_msg
+
