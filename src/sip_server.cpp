@@ -10,10 +10,11 @@ SIPServer::SIPServer()
         m_bStarted = false;
         m_pUDPSocket = nullptr;
         m_pUDPSocket = new UDPSocket(5060, false);
+        m_callsessionManager = nullptr;
         m_sDataPath ="/opt/app/DATA";
         m_debugLevel = 40;
         m_log =1;
-        
+        m_serverIP = "172.0.0.1";
         std::cout<<"start SIPServer()\n";
     }
     catch(const std::exception &e)
@@ -40,6 +41,12 @@ void SIPServer::DeleteMemory()
             delete m_pUDPSocket;
         }
         m_pUDPSocket = nullptr;
+
+        if(m_callsessionManager)
+        {
+            delete m_callsessionManager;
+        }
+        m_callsessionManager = nullptr;
 
         m_pDailyLog->WriteLog(kGeneralError, "================================END================================");
 
@@ -80,7 +87,7 @@ void SIPServer::run()
                 {
                     buffer[bytes] = '\0';
 
-                    std::string sipMsg(buffer);
+                    std::string sipMsg((char*)buffer, bytes);
 
                     struct in_addr addr;
                     addr.s_addr = ip;
@@ -111,6 +118,8 @@ int  SIPServer::Start()
             m_pDailyLog = new Clogger(m_sDataPath, m_debugLevel, m_log, "Sip_Server");
             printf("CREATING LOG FILE\n");
             m_pDailyLog->CreateLog();
+
+            m_callsessionManager = new CallSessionManager(m_pDailyLog);
              //thread start
             if (!Thread::start())
             {
@@ -159,236 +168,220 @@ int SIPServer::Stop()
     return kSuccess;
 }
 
-void SIPServer::processSipMessage(const std::string& sipMsg, const std::string& addr_ip, uword port)
+void SIPServer::processSipMessage(const std::string& sipMsg,
+                                  const std::string& addr_ip,
+                                  uword port)
 {
     try
-    {   
+    {
         SIPParser parser;
         parser.parse(sipMsg);
 
-        //m_pDailyLog->WriteLog(kDebug,sipMsg);
-        //std::cout<<sipMsg<<std::endl;
-
-        std::string method = parser.getMethod();
-
         std::string firstLine = parser.getRequestLine();
-        
+        std::string method    = parser.getMethod();
+
+
+        // ==============================
+        // 🔵 HANDLE RESPONSE (SIP/2.0)
+        // ==============================
         if (firstLine.find("SIP/2.0") == 0)
         {
             std::string callID = parser.getCallID();
-
-            CallSession* session = m_sessionManager.getSession(callID);
+            CallSession* session = m_callsessionManager->getSession(callID);
 
             if (!session)
             {
-                std::cout << "[WARN] Session not found for response\n";
-                m_pDailyLog->WriteLog(kDebug,"[WARN] Session not found for response\n");
+                logMsg = "[WARN] Session not found";
+                std::cout << logMsg << std::endl;
                 return;
             }
-            
-            std::string cseqm =  parser.getCSeqMethod();
-            logMsg = "[CALL " + callID + "] "+firstLine+ " ("+cseqm +") Received from CALLEE " +
-                     addr_ip + ":" + std::to_string(port);
-            std::cout << logMsg << std::endl;
-            m_pDailyLog->WriteLog(kDebug, logMsg);
 
-            //  IMPORTANT: Check direction
-            if (session->isCaller(addr_ip,port))
+            std::string statusLine = firstLine;
+            std::string cseqm = parser.getCSeqMethod();
+
+            std::string finalMsg = sipMsg;
+
+            //  HANDLE 200 OK (INVITE)
+            if (statusLine.find("200") != std::string::npos &&
+                cseqm.find("INVITE") != std::string::npos)
             {
-                // Response from caller → send to callee
-                m_pUDPSocket->send(sipMsg.c_str(), sipMsg.length(),
+                std::string sdp = SDPParser::extractSDP(sipMsg);
+                std::string headers = SDPParser::extractHeaders(sipMsg);
+
+                sdp = SDPParser::cleanSDP(sdp);
+
+                SDPInfo callee = SDPParser::parse(sdp);
+
+                // store callee RTP
+                session->rtp.callee_ip = callee.ip;
+                session->rtp.callee_port = callee.port;
+
+                // allocate RTP port
+                if (session->rtp.server_port == 0)
+                {
+                    session->rtp.server_port = allocateRTPPort();
+                }
+
+                // modify SDP
+                std::string modifiedSDP =
+                     SDPParser::modifyAudioPort(sdp, session->rtp.server_port);
+
+                modifiedSDP =
+                    SDPParser::modifyConnectionIP(modifiedSDP, m_serverIP);
+
+                headers =
+                    SDPParser::updateContentLength(headers, modifiedSDP.size());
+
+                finalMsg = headers + modifiedSDP;
+
+
+                logMsg = "[CALL " + callID + "] SDP modified (200 OK)";
+                std::cout << logMsg << std::endl;
+
+                //  START RTP
+                startRTPRelay(session->rtp);
+            }
+
+            //  FORWARD RESPONSE
+            if (session->isCaller(addr_ip, port))
+            {
+                m_pUDPSocket->send(finalMsg.c_str(), finalMsg.length(),
                     inet_addr(session->targetIP.c_str()),
                     session->targetPort);
-
-                logMsg = "[CALL " + callID + "] Response forwarded to CALLEE " +
-                     session->targetIP + ":" + std::to_string(session->targetPort);
-                std::cout << logMsg << std::endl;
-                m_pDailyLog->WriteLog(kDebug, logMsg);
             }
             else
             {
-                // Response from callee → send to caller
-                m_pUDPSocket->send(sipMsg.c_str(), sipMsg.length(),
+                m_pUDPSocket->send(finalMsg.c_str(), finalMsg.length(),
                     inet_addr(session->callerIP.c_str()),
                     session->callerPort);
-
-                logMsg = "[CALL " + callID + "] Response forwarded to CALLER " +
-                     session->callerIP + ":" + std::to_string(session->callerPort);
-                std::cout << logMsg << std::endl;
-                m_pDailyLog->WriteLog(kDebug, logMsg);
             }
 
-            std::string statusLine = parser.getRequestLine();
-
+            // ==============================
+            //  STATE MACHINE
+            // ==============================
             if (statusLine.find("180") != std::string::npos)
             {
                 session->state = "RINGING";
-                logMsg = "[CALL " + callID + "] State changed to " + session->state;
-                std::cout << logMsg << std::endl;
-                m_pDailyLog->WriteLog(kDebug, logMsg);
             }
-            else if (statusLine.find("200") != std::string::npos && cseqm.find("BYE") != std::string::npos)
-            {   
-                session->state = "TERMINATED";
-                logMsg = "[CALL " + callID + "] State changed to " + session->state;
-                std::cout << logMsg << std::endl;
-                m_pDailyLog->WriteLog(kDebug, logMsg);
-                m_sessionManager.removeSession(callID);
-                
-                logMsg  = "[CALL " + callID + "] Session deleted after BYE 200 OK";
-                std::cout << logMsg << std::endl;
-                m_pDailyLog->WriteLog(kDebug, logMsg);
-            }
-            else if (statusLine.find("200") != std::string::npos && cseqm.find("CANCEL") != std::string::npos)
-            {   
-                session->state = "CANCELLING";
-                logMsg = "[CALL " + callID + "] State changed to " + session->state;
-                std::cout << logMsg << std::endl;
-                m_pDailyLog->WriteLog(kDebug, logMsg);
-            }
-            else if (statusLine.find("200") != std::string::npos)
+            else if (statusLine.find("200") != std::string::npos &&
+                     cseqm.find("BYE") != std::string::npos)
             {
-                session->state = "CONNECTED";
-                logMsg = "[CALL " + callID + "] State changed to " + session->state;
-                std::cout << logMsg << std::endl;
-                m_pDailyLog->WriteLog(kDebug, logMsg);
+                session->state = "TERMINATED";
+                stopRTPRelay(session->rtp);   
+                m_callsessionManager->removeSession(callID);
             }
             else if (statusLine.find("487") != std::string::npos)
             {
                 session->state = "TERMINATED";
-                logMsg = "[CALL " + callID + "] State changed to " + session->state;
-                std::cout << logMsg << std::endl;
-                m_pDailyLog->WriteLog(kDebug, logMsg);
-                m_sessionManager.removeSession(callID);
-
-                logMsg  = "[CALL " + callID + "] Session deleted after 487 Terminated msg";
-                std::cout << logMsg << std::endl;
-                m_pDailyLog->WriteLog(kDebug, logMsg);
-                
+                stopRTPRelay(session->rtp);   
+                m_callsessionManager->removeSession(callID);
             }
+            else if (statusLine.find("200") != std::string::npos)
+            {
+                session->state = "CONNECTED";
+            }
+
+            return; 
         }
+
+        // ==============================
+        // 🟢 HANDLE REQUESTS
+        // ==============================
 
         if (method == "INVITE")
         {
-            std::string Via = parser.getVia();
-            std::string callID = parser.getCallID();
-            std::string from   = parser.getFrom();
-            std::string to     = parser.getTo();
-            std::string cSeq     = parser.getCSeq();
-
-            // std::cout << "INVITE Received\n";
-            // std::cout << "Via: " << Via << std::endl;
-            // std::cout << "Call-ID: " << callID << std::endl;
-            // std::cout << "From: " << from << std::endl;
-            // std::cout << "To: " << to << std::endl;
-            // std::cout << "cSeq: " << cSeq << std::endl;
-
-            // std::string logMsg =
-            //     "INVITE Received | Via: " + Via +
-            //     " | Call-ID: " + callID +
-            //     " | From: " + from +
-            //     " | To: " + to +
-            //     " | CSeq: " + cSeq;
-
-            // m_pDailyLog->WriteLog(kDebug, logMsg);
-
-            processInviteMessage(parser,sipMsg, addr_ip, port);
+            processInviteMessage(parser, sipMsg, addr_ip, port);
         }
         else if (method == "ACK")
         {
-            processAckMessage(parser,sipMsg,addr_ip,port);
+            processAckMessage(parser, sipMsg, addr_ip, port);
         }
         else if (method == "BYE")
         {
-            processByeMessage(parser,sipMsg,addr_ip,port);
+            processByeMessage(parser, sipMsg, addr_ip, port);
         }
         else if (method == "CANCEL")
         {
-            processCancelMessage(parser,sipMsg,addr_ip,port);
+            processCancelMessage(parser, sipMsg, addr_ip, port);
         }
-        
     }
     catch (const std::exception& e)
     {
-        m_pDailyLog->WriteLog(kGeneralError,
-            std::string("Exception: processSipMessage: ") + e.what());
-    }
-    catch (...)
-    {
-        m_pDailyLog->WriteLog(kGeneralError,
-            "Unknown Exception: processSipMessage");
+        std::cout << "ERROR: " << e.what() << std::endl;
     }
 }
 
-void SIPServer::processInviteMessage(const SIPParser& parser,const std::string &data, const std::string &ip, uword port)
-{   
-    try{
-        
-        
-        logMsg = "INVITE received from "+ ip+":"+ std::to_string(port);
-        std::cout<<logMsg<<std::endl;
-        m_pDailyLog->WriteLog(kDebug, logMsg);
-
-        // Send proper 100 Trying
-        std::string trying = build100Trying(parser);
-
-        std::string targetIP = "127.0.0.1";
-        int targetPort = 5061;   // ✅ FIX
-
-        
-
-        udword clientIP = inet_addr(ip.c_str());
-        m_pUDPSocket->send(trying.c_str(), trying.length(), clientIP, port);
-        //m_pDailyLog->WriteLog(kDebug,trying.c_str());
-
-        logMsg = "Sending 100 Trying message to "+ ip+":"+ std::to_string(port);
-        std::cout<<logMsg<<std::endl;
-        m_pDailyLog->WriteLog(kDebug, logMsg);
-
-        // STEP 2: Extract target from Request-URI
-        std::string requestLine = parser.getRequestLine();
-
-        // std::string targetIP;
-        // int targetPort;
-
-        
-
-        //parser.parseRequestURI(requestLine, targetIP, targetPort);
-
-        
-        CallSession session;
-        session.callID = parser.getCallID();
-        session.callerIP = ip;
-        session.callerPort = port;
-
-        session.targetIP = targetIP;
-        session.targetPort = targetPort;
-
-        session.state = "INVITE_SENT";
-
-        //  store
-        m_sessionManager.addSession(session);
-
-        logMsg = "[CALL " + session.callID + "] Session Created Caller ("+session.callerIP+":"+std::to_string(session.callerPort)+")";
+void SIPServer::processInviteMessage(const SIPParser& parser,
+                                     const std::string &data,
+                                     const std::string &ip,
+                                     uword port)
+{
+    try
+    {
+        logMsg = "INVITE received from " + ip + ":" + std::to_string(port);
         std::cout << logMsg << std::endl;
         m_pDailyLog->WriteLog(kDebug, logMsg);
-        
-        m_pUDPSocket->send(data.c_str(), data.length(),
-                        inet_addr(targetIP.c_str()), targetPort);
 
+        // 100 Trying
+        std::string trying = build100Trying(parser);
+        m_pUDPSocket->send(trying.c_str(), trying.length(),
+                           inet_addr(ip.c_str()), port);
         
-        logMsg ="[CALL " + session.callID + "] INVITE forwarded to " + targetIP + ":" + std::to_string(targetPort);
-        std::cout<<logMsg<<std::endl;
+        //  CREATE SESSION FIRST
+        auto session = std::make_shared<CallSession>();
+
+        session->callID = parser.getCallID();
+        session->callerIP = ip;
+        session->callerPort = port;
+        session->targetIP = "127.0.0.1";
+        session->targetPort = 5061;
+        session->state = "INVITE_SENT";
+
+        // SDP
+        std::string sdp = SDPParser::extractSDP(data);
+        std::string headers = SDPParser::extractHeaders(data);
+
+        SDPInfo caller = SDPParser::parse(sdp);
+
+        // store caller RTP
+        session->rtp.caller_ip = caller.ip;
+        session->rtp.caller_port = caller.port;
+
+        // allocate RTP port
+        if (session->rtp.server_port == 0)
+        {
+            session->rtp.server_port = allocateRTPPort();
+        }
+
+        // modify SDP
+        std::string modifiedSDP =
+            SDPParser::modifyAudioPort(sdp, session->rtp.server_port);
+
+        modifiedSDP =
+            SDPParser::modifyConnectionIP(modifiedSDP, m_serverIP);
+
+        // update content-length
+        headers = SDPParser::updateContentLength(headers, modifiedSDP.size());
+
+        std::string finalMsg = headers + modifiedSDP;
+
+        // store session
+        m_callsessionManager->addSession(session);
+
+        // forward INVITE
+        m_pUDPSocket->send(finalMsg.c_str(), finalMsg.length(),
+                           inet_addr(session->targetIP.c_str()),
+                           session->targetPort);
+
+        logMsg = "[CALL " + session->callID + "] INVITE forwarded to CALLEE";
+        std::cout << logMsg << std::endl;
         m_pDailyLog->WriteLog(kDebug, logMsg);
-
-        
     }
     catch (const std::exception& e)
     {
         m_pDailyLog->WriteLog(kGeneralError,
-            "ERROR:processInviteMessage" + std::string(e.what()));
+            "ERROR:processInviteMessage " + std::string(e.what()));
     }
-    
 }
 
 void SIPServer::processAckMessage(const SIPParser& parser,
@@ -399,7 +392,7 @@ void SIPServer::processAckMessage(const SIPParser& parser,
     try {
         std::string callID = parser.getCallID();
         
-        CallSession* session = m_sessionManager.getSession(callID);
+        CallSession* session = m_callsessionManager->getSession(callID);
 
         if (!session)
         {
@@ -456,7 +449,7 @@ void SIPServer::processByeMessage(const SIPParser& parser,
     try {
         std::string callID = parser.getCallID();
 
-        CallSession* session = m_sessionManager.getSession(callID);
+        CallSession* session = m_callsessionManager->getSession(callID);
 
         if (!session)
         {
@@ -518,7 +511,7 @@ void SIPServer::processCancelMessage(const SIPParser& parser,
 
         std::string callID = parser.getCallID();
 
-        CallSession* session = m_sessionManager.getSession(callID);
+        CallSession* session = m_callsessionManager->getSession(callID);
 
         if (!session)
         {
@@ -566,8 +559,6 @@ void SIPServer::processCancelMessage(const SIPParser& parser,
             std::cout<<logMsg<<std::endl;
             m_pDailyLog->WriteLog(kDebug, logMsg);
         }
-
-        
 
 
     }
@@ -645,5 +636,19 @@ void SIPServer::debug_testing()
     }
 }
 
-            
+//  FIX: use std::ref
+void SIPServer::startRTPRelay(RTPSession &session) {
+    std::thread(rtpRelayWorker, std::ref(session)).detach();
+}
+
+void SIPServer::stopRTPRelay(RTPSession& rtp)
+{
+    rtp.running = false;
+
+    if (rtp.sockfd > 0)
+    {
+        close(rtp.sockfd);   //  force unblock recvfrom
+        std::cout << "[RTP] Stopped\n";
+    }
+}          
            

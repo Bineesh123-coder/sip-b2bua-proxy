@@ -2,8 +2,8 @@
 #define CALL_SESSION_H
 
 #include <string>
-
-typedef unsigned short uword;
+#include "rtp_session.h"   // 🔥 ADD THIS
+#include "types.h"
 
 class CallSession
 {
@@ -18,8 +18,11 @@ public:
     std::string targetIP;
     uword targetPort;
 
-    // State (optional but useful)
-    std::string state; // INVITE_SENT, RINGING, CONNECTED
+    //  ADD THIS (VERY IMPORTANT)
+    RTPSession rtp;
+
+    // State
+    std::string state;
 
     CallSession();
 

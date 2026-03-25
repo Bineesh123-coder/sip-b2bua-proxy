@@ -198,3 +198,5 @@ sockaddr_in UDPSocket::GetSocketSourceAddress() {
 sockaddr_in UDPSocket::GetSocketDestinationAddress() {
     return destAddress;
 }
+
+int UDPSocket::getSocketFD() { return this->socket_fd; }

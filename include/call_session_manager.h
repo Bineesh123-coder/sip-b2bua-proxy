@@ -5,29 +5,24 @@
 #include <string>
 #include <mutex>
 #include "call_session.h"
+#include <memory>
+#include "logger.h"
 
 class CallSessionManager
 {
 private:
-    std::map<std::string, CallSession> m_sessions;
-    std::mutex m_mutex;  // thread safety
+    std::map<std::string, std::shared_ptr<CallSession>> m_sessions; // ✅ FIXED
+    std::mutex m_mutex;
+    Clogger* m_log;
+    std::string logMsg;
 
 public:
+    CallSessionManager(Clogger* logger);
     CallSessionManager();
-
-    // Create new session
-    void addSession(const CallSession& session);
-
-    // Get session pointer (NULL if not found)
+    void addSession(std::shared_ptr<CallSession> session);
     CallSession* getSession(const std::string& callID);
-
-    // Remove session
     void removeSession(const std::string& callID);
-
-    // Check existence
     bool hasSession(const std::string& callID);
-
-    // Debug (optional)
     void printAllSessions();
 };
 

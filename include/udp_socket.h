@@ -12,10 +12,11 @@
 #include <stdexcept>
 
 #include "constants.h"
+#include "types.h"
 
-typedef unsigned short uword;
-typedef unsigned long udword;
-typedef char sbyte;
+// typedef unsigned short uword;
+// typedef unsigned long udword;
+// typedef char sbyte;
 
 class UDPSocket
 {
@@ -53,6 +54,7 @@ public:
 
     // Returns the destination address of the last sent packet.
     sockaddr_in GetSocketDestinationAddress();
+    int getSocketFD() ;
 
 private:
     // Sets the socket to non-blocking mode.

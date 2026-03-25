@@ -10,7 +10,9 @@ SRC = \
 	src/logger.cpp \
 	src/sip_parser.cpp \
 	src/call_session.cpp \
-	src/call_session_manager.cpp
+	src/call_session_manager.cpp \
+	src/rtp_relay.cpp \
+	src/sdp_parser.cpp 
 
 OBJ = $(SRC:.cpp=.o)
 
