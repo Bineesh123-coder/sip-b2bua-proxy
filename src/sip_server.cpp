@@ -570,21 +570,11 @@ void SIPServer::processCancelMessage(const SIPParser& parser,
 }
 
 
-// void SIPServer::processOptionsMessage(const std::string& data, const std::string& ip)
-// {
-//     std::cout << "Processing OPTIONS from " << ip << std::endl;
-
-//     std::string response =
-//     "SIP/2.0 200 OK\r\n"
-//     "Allow: INVITE, ACK, BYE, OPTIONS\r\n"
-//     "Content-Length: 0\r\n\r\n";
-
-//     // send response
-// }
-
 std::string SIPServer::build100Trying(const SIPParser& parser)
-{
-    std::string response =
+{   
+    try{
+
+        std::string response =
         "SIP/2.0 100 Trying\r\n"
         "Via: " + parser.getVia() + "\r\n"
         "From: " + parser.getFrom() + "\r\n"
@@ -593,12 +583,22 @@ std::string SIPServer::build100Trying(const SIPParser& parser)
         "CSeq: " + parser.getCSeq() + "\r\n"
         "Content-Length: 0\r\n\r\n";
 
-    return response;
+        return response;
+    }
+    catch (const std::exception &e)
+    {
+        std::cout << "ERROR: SIPServer::build100Trying: " << e.what() << std::endl;
+        return "";
+    }
+    
 }
 
 std::string SIPServer::build_200_OK(const SIPParser& parser)
 {
-    std::string response =
+   
+     try{
+
+         std::string response =
         "SIP/2.0 200 OK\r\n"
         "Via: " + parser.getVia() + "\r\n"
         "From: " + parser.getFrom() + "\r\n"
@@ -607,7 +607,14 @@ std::string SIPServer::build_200_OK(const SIPParser& parser)
         "CSeq: " + parser.getCSeq() + "\r\n"
         "Content-Length: 0\r\n\r\n";
 
-    return response;
+        return response;
+    }
+    catch (const std::exception &e)
+    {
+        std::cout << "ERROR: SIPServer:::build_200_OK: " << e.what() << std::endl;
+        return "";
+    }
+    
 }
 
 void SIPServer::debug_testing()
@@ -638,17 +645,33 @@ void SIPServer::debug_testing()
 
 //  FIX: use std::ref
 void SIPServer::startRTPRelay(RTPSession &session) {
-    std::thread(rtpRelayWorker, std::ref(session)).detach();
+    try{
+
+        std::thread(rtpRelayWorker, std::ref(session)).detach();
+    }
+    catch (const std::exception &e)
+    {
+        std::cout << "ERROR: SIPServer::startRTPRelay: " << e.what() << std::endl;
+    }
+    
 }
 
 void SIPServer::stopRTPRelay(RTPSession& rtp)
 {
-    rtp.running = false;
+    
+    try{
 
-    if (rtp.sockfd > 0)
+        rtp.running = false;
+
+        if (rtp.sockfd > 0)
+        {
+            close(rtp.sockfd);   //  force unblock recvfrom
+            std::cout << "[RTP] Stopped\n";
+        }
+    }
+    catch (const std::exception &e)
     {
-        close(rtp.sockfd);   //  force unblock recvfrom
-        std::cout << "[RTP] Stopped\n";
+        std::cout << "ERROR: SIPServer::stopRTPRelay: " << e.what() << std::endl;
     }
 }          
            

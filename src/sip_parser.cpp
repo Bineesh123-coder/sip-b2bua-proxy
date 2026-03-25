@@ -1,47 +1,57 @@
 #include "sip_parser.h"
 #include <sstream>
 #include <algorithm>
+#include <iostream>
 
 SIPParser::SIPParser()
 {
 }
 
 void SIPParser::parse(const std::string& data)
-{
-    m_headers.clear();
-    m_method.clear();
+{   
+    try{
 
-    m_rawData = data;
+        m_headers.clear();
+        m_method.clear();
 
-    std::istringstream stream(data);
-    std::string line;
+        m_rawData = data;
 
-    // 👉 First line = method
-    if (std::getline(stream, line))
-    {
-        std::istringstream firstLine(line);
-        firstLine >> m_method;
-    }
+        std::istringstream stream(data);
+        std::string line;
 
-    // 👉 Parse headers
-    while (std::getline(stream, line))
-    {
-        if (line == "\r" || line.empty())
-            break;
-
-        size_t pos = line.find(":");
-        if (pos != std::string::npos)
+        // First line = method
+        if (std::getline(stream, line))
         {
-            std::string key = line.substr(0, pos);
-            std::string value = line.substr(pos + 1);
+            std::istringstream firstLine(line);
+            firstLine >> m_method;
+        }
 
-            // trim spaces
-            value.erase(0, value.find_first_not_of(" \t"));
-            value.erase(value.find_last_not_of("\r\n") + 1);
+        //  Parse headers
+        while (std::getline(stream, line))
+        {
+            if (line == "\r" || line.empty())
+                break;
 
-            m_headers[key] = value;
+            size_t pos = line.find(":");
+            if (pos != std::string::npos)
+            {
+                std::string key = line.substr(0, pos);
+                std::string value = line.substr(pos + 1);
+
+                // trim spaces
+                value.erase(0, value.find_first_not_of(" \t"));
+                value.erase(value.find_last_not_of("\r\n") + 1);
+
+                m_headers[key] = value;
+            }
         }
     }
+    catch (const std::exception &e)
+    {
+        std::cout << "ERROR: SIPParser::parse: " << e.what() << std::endl;
+        
+    }
+    
 }
 
 std::string SIPParser::getMethod() const
@@ -50,27 +60,36 @@ std::string SIPParser::getMethod() const
 }
 
 std::string SIPParser::getHeader(const std::string& headerName) const
-{
-    std::istringstream stream(m_rawData);
-    std::string line;
+{   
+    try{
+        
+        std::istringstream stream(m_rawData);
+        std::string line;
 
-    while (std::getline(stream, line))
-    {
-        // remove trailing \r
-        if (!line.empty() && line.back() == '\r')
-            line.pop_back();
-
-        if (line.find(headerName + ":") == 0)
+        while (std::getline(stream, line))
         {
-            std::string value = line.substr(headerName.length() + 1);
+            // remove trailing \r
+            if (!line.empty() && line.back() == '\r')
+                line.pop_back();
 
-            if (!value.empty() && value[0] == ' ')
-                value.erase(0, 1);
+            if (line.find(headerName + ":") == 0)
+            {
+                std::string value = line.substr(headerName.length() + 1);
 
-            return trim(value);
+                if (!value.empty() && value[0] == ' ')
+                    value.erase(0, 1);
+
+                return trim(value);
+            }
         }
+        return "";
     }
-    return "";
+    catch (const std::exception &e)
+    {
+        std::cout << "ERROR: SIPParser::getHeader: " << e.what() << std::endl;
+        return "";
+    }
+    
 }
 
 std::string SIPParser::getCallID() const
@@ -99,61 +118,91 @@ std::string SIPParser::getCSeq() const
 }
 
 std::string SIPParser::getCSeqMethod() const
-{
-    std::string cseq = getHeader("CSeq");
+{   
+    try{
 
-    std::istringstream iss(cseq);
-    std::string number, method;
-
-    iss >> number >> method;
-
-    return method;
-}
+        std::string cseq = getHeader("CSeq");
+        std::istringstream iss(cseq);
+        std::string number, method;
+        iss >> number >> method;
+        return method;
+      
+    }
+    catch (const std::exception &e)
+    {
+        std::cout << "ERROR: getCSeqMethod: " << e.what() << std::endl;
+        return "";
+    }
+}  
 
 std::string SIPParser::getRequestLine() const
-{
-    std::istringstream stream(m_rawData);
-    std::string line;
+{   
+    try{
 
-    if (std::getline(stream, line))
-        return trim(line);
+        std::istringstream stream(m_rawData);
+        std::string line;
 
-    return "";
+        if (std::getline(stream, line))
+            return trim(line);
+
+        return "";
+    }
+    catch (const std::exception &e)
+    {
+        std::cout << "ERROR: SIPParser::getRequestLine" << e.what() << std::endl;
+        return "";
+    }
+    
 }
 
-void SIPParser::parseRequestURI(const std::string& line,
-                     std::string& ip,
-                     int& port) const
-{
-    size_t sipPos = line.find("sip:");
-    size_t atPos = line.find("@");
+void SIPParser::parseRequestURI(const std::string& line,std::string& ip,int& port) const
+{   
+    try{
 
-    if (sipPos == std::string::npos || atPos == std::string::npos)
-        return;
+        size_t sipPos = line.find("sip:");
+        size_t atPos = line.find("@");
 
-    size_t colonPos = line.find(":", atPos);
-    size_t spacePos = line.find(" ", atPos);
+        if (sipPos == std::string::npos || atPos == std::string::npos)
+            return;
 
-    if (colonPos != std::string::npos && colonPos < spacePos)
-    {
-        ip = line.substr(atPos + 1, colonPos - (atPos + 1));
-        port = std::stoi(line.substr(colonPos + 1,
-                    spacePos - (colonPos + 1)));
+        size_t colonPos = line.find(":", atPos);
+        size_t spacePos = line.find(" ", atPos);
+
+        if (colonPos != std::string::npos && colonPos < spacePos)
+        {
+            ip = line.substr(atPos + 1, colonPos - (atPos + 1));
+            port = std::stoi(line.substr(colonPos + 1,
+                        spacePos - (colonPos + 1)));
+        }
+        else
+        {
+            ip = line.substr(atPos + 1, spacePos - (atPos + 1));
+            port = 5060; // default
+        }
     }
-    else
+    catch (const std::exception &e)
     {
-        ip = line.substr(atPos + 1, spacePos - (atPos + 1));
-        port = 5060; // default
+        std::cout << "ERROR: parseRequestURI: " << e.what() << std::endl;
     }
+    
 }
 
 std::string SIPParser::trim(const std::string& str) const
-{
-    size_t first = str.find_first_not_of(" \r\n\t");
-    size_t last  = str.find_last_not_of(" \r\n\t");
+{   
+    try{
 
-    if (first == std::string::npos)
+        size_t first = str.find_first_not_of(" \r\n\t");
+        size_t last  = str.find_last_not_of(" \r\n\t");
+
+        if (first == std::string::npos)
+            return "";
+
+        return str.substr(first, last - first + 1);
+    }
+    catch (const std::exception &e)
+    {
+        std::cout << "ERROR: SIPParser::trim: " << e.what() << std::endl;
         return "";
-
-    return str.substr(first, last - first + 1);
+    }
+    
 }

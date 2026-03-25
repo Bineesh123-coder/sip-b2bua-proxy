@@ -1,4 +1,5 @@
 #include "call_session.h"
+#include <iostream>
 
 CallSession::CallSession()
 {
@@ -8,5 +9,15 @@ CallSession::CallSession()
 }
 
 bool CallSession::isCaller(const std::string& ip, uword port) const {
-    return ip == callerIP && port == callerPort;
+    try{
+
+         return ip == callerIP && port == callerPort;
+    }
+    catch (const std::exception &e)
+    {
+        std::cout << "ERROR: CallSession::isCaller:" << e.what() << std::endl;
+        return false;
+
+    }
+   
 }

@@ -72,3 +72,19 @@ sipp -sf uas_delay.xml -p 5061
 
 # Terminal 3
 sipp -sf uac_cancel.xml 127.0.0.1:5060 -p 5062 -m 1 -trace_msg
+
+try{
+
+}
+catch (const std::exception &e)
+{
+    std::cout << "ERROR: addSession: " << e.what() << std::endl;
+}
+
+try{
+
+    }
+    catch (const std::exception &e)
+    {
+        std::cout << "ERROR: addSession: " << e.what() << std::endl;
+    }
