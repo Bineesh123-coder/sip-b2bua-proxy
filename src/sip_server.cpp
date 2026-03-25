@@ -9,12 +9,9 @@ SIPServer::SIPServer()
         m_bStopped = true;
         m_bStarted = false;
         m_pUDPSocket = nullptr;
-        m_pUDPSocket = new UDPSocket(5060, false);
+        //m_pUDPSocket = new UDPSocket(5060, false);
         m_callsessionManager = nullptr;
-        m_sDataPath ="/opt/app/DATA";
-        m_debugLevel = 40;
-        m_log =1;
-        m_serverIP = "172.0.0.1";
+        m_envReader = new EnvReader(); // Create a new environment reader instance
         std::cout<<"start SIPServer()\n";
     }
     catch(const std::exception &e)
@@ -39,14 +36,26 @@ void SIPServer::DeleteMemory()
         if(m_pUDPSocket)
         {
             delete m_pUDPSocket;
+            m_pDailyLog->WriteLog(kGeneralError, "SIPServer::DeleteMemory(): Deleted m_pUDPSocket");
         }
         m_pUDPSocket = nullptr;
+
 
         if(m_callsessionManager)
         {
             delete m_callsessionManager;
+             m_pDailyLog->WriteLog(kGeneralError, "SIPServer::DeleteMemory(): Deleted m_callsessionManager");
         }
         m_callsessionManager = nullptr;
+       
+
+        if (m_envReader)
+        {
+            delete m_envReader;
+
+            m_pDailyLog->WriteLog(kGeneralError, "SIPServer::DeleteMemory(): Deleted m_envReader");
+        }
+        m_envReader = nullptr; // Prevents dangling pointer 
 
         m_pDailyLog->WriteLog(kGeneralError, "================================END================================");
 
@@ -59,6 +68,10 @@ void SIPServer::DeleteMemory()
     catch(const std::exception &e)
     {
         std::cout<<"ERROR:DeleteMemmory()\n";
+        m_pUDPSocket = nullptr;
+        m_callsessionManager = nullptr;
+        m_envReader = nullptr;
+        m_pDailyLog = nullptr;
     }
 }
 
@@ -115,10 +128,16 @@ int  SIPServer::Start()
     {   
         if(m_bStopped)
         {   
-            m_pDailyLog = new Clogger(m_sDataPath, m_debugLevel, m_log, "Sip_Server");
-            printf("CREATING LOG FILE\n");
-            m_pDailyLog->CreateLog();
-
+            // m_pDailyLog = new Clogger(m_sDataPath, m_debugLevel, m_log, "Sip_Server");
+            // printf("CREATING LOG FILE\n");
+            // m_pDailyLog->CreateLog();
+            // Read environment settings for the IP recorder
+            if (ReadSipServerSettingsENV() == kFailure)
+            {
+                m_pDailyLog->WriteLog(kGeneralError, "SIPServer::start():: ERROR::ReadSipServerSettingsENV Failed");
+                return kFailure;
+            }
+            m_pUDPSocket = new UDPSocket(m_nsip_port, false);
             m_callsessionManager = new CallSessionManager(m_pDailyLog);
              //thread start
             if (!Thread::start())
@@ -166,6 +185,313 @@ int SIPServer::Stop()
         return kFailure;
     }
     return kSuccess;
+}
+
+/* Connect to redis server */
+int SIPServer::Connect_to_Redis()
+{
+    try
+    {
+        // Connect to Redis server
+        m_pContext = redisConnect(m_sRedisHost.c_str(), m_nRedisPort);
+        if (m_pContext == nullptr || m_pContext->err) {
+            if (m_pContext) {
+                std::cerr << "CSynwayIPRecorder::Connect_to_Redis():Connection error: " << m_pContext->errstr << std::endl;
+                m_pDailyLog->WriteLog(kGeneralError, "CSynwayIPRecorder::Connect_to_Redis():Redis Connection error: " + std::string(m_pContext->errstr));
+                redisFree(m_pContext);
+            }
+            else {
+                std::cerr << "CSynwayIPRecorder::Connect_to_Redis():Connection error: can't allocate redis context" << std::endl;
+                m_pDailyLog->WriteLog(kGeneralError, "CSynwayIPRecorder::Connect_to_Redis():Redis Connection error: can't allocate redis context");
+            }
+            return kFailure;
+        }
+        else
+        {
+            m_pDailyLog->WriteLog(kGeneralError, "CSynwayIPRecorder::Connect_to_Redis():Redis Connection SUCCESS");
+        }
+
+		// ================================================================
+        //  🔐 Authenticate if password is set (supports username + password)
+        // ================================================================
+        if (!m_sRedisPassword.empty())
+        {
+            redisReply* authReply = nullptr;
+
+            if (!m_sRedisUsername.empty())
+                authReply = (redisReply*)redisCommand(m_pContext, "AUTH %s %s",
+                    m_sRedisUsername.c_str(), m_sRedisPassword.c_str());
+            else
+                authReply = (redisReply*)redisCommand(m_pContext, "AUTH %s",
+                    m_sRedisPassword.c_str());
+
+            if (authReply == nullptr)
+            {
+                std::cerr << "CSynwayRecorder::Connect_to_Redis(): AUTH command failed" << std::endl;
+                m_pDailyLog->WriteLog(kGeneralError, "CSynwayRecorder::Connect_to_Redis(): Redis AUTH command failed.");
+                redisFree(m_pContext);
+                return kFailure;
+            }
+
+            if (authReply->type == REDIS_REPLY_ERROR)
+            {
+                std::cerr << "CSynwayRecorder::Connect_to_Redis(): AUTH error: " << authReply->str << std::endl;
+                m_pDailyLog->WriteLog(kGeneralError, "CSynwayRecorder::Connect_to_Redis(): Redis AUTH error: " + std::string(authReply->str));
+                freeReplyObject(authReply);
+                redisFree(m_pContext);
+                return kFailure;
+            }
+
+            m_pDailyLog->WriteLog(kGeneralError, "CSynwayRecorder::Connect_to_Redis(): Redis AUTH SUCCESS");
+            freeReplyObject(authReply);
+        }
+
+        //ExecuteRedisCommand("PING");
+        // Send PING command
+        redisReply* reply = (redisReply*)redisCommand(m_pContext, "PING");
+        if (reply)
+        {
+            switch (reply->type)
+            {
+            case REDIS_REPLY_STRING:
+                if (reply->str)
+                {
+                    std::cout << "CSynwayIPRecorder::PING: " << reply->str << std::endl;
+                    m_pDailyLog->WriteLog(kGeneralError, "CSynwayIPRecorder::Redis PING: " + std::string(reply->str));
+                }
+                else
+                {
+                    std::cerr << "CSynwayIPRecorder::PING: Reply is a string but empty." << std::endl;
+                    m_pDailyLog->WriteLog(kGeneralError, "CSynwayIPRecorder::Redis PING: Reply is a string but empty.");
+                }
+                break;
+
+            case REDIS_REPLY_STATUS:
+                std::cout << "CSynwayIPRecorder::PING Status: " << reply->str << std::endl;
+                m_pDailyLog->WriteLog(kGeneralError, "CSynwayIPRecorder::Redis PING Status: " + std::string(reply->str ? reply->str : "null"));
+                break;
+
+            case REDIS_REPLY_INTEGER:
+                std::cout << "CSynwayIPRecorder::PING Integer Reply: " << reply->integer << std::endl;
+                m_pDailyLog->WriteLog(kGeneralError, "CSynwayIPRecorder::Redis PING Integer Reply: " + std::to_string(reply->integer));
+                break;
+
+            case REDIS_REPLY_NIL:
+                std::cout << "CSynwayIPRecorder::PING Reply is NIL." << std::endl;
+                m_pDailyLog->WriteLog(kGeneralError, "CSynwayIPRecorder::Redis PING Reply is NIL.");
+                break;
+
+            case REDIS_REPLY_ERROR:
+                std::cerr << "CSynwayIPRecorder::PING Error: " << reply->str << std::endl;
+                m_pDailyLog->WriteLog(kGeneralError, "CSynwayIPRecorder::Redis PING Error: " + std::string(reply->str ? reply->str : "null"));
+                break;
+
+            case REDIS_REPLY_ARRAY:
+                std::cout << "CSynwayIPRecorder::PING Array Reply:" << std::endl;
+                for (size_t i = 0; i < reply->elements; ++i)
+                {
+                    if (reply->element[i] && reply->element[i]->str)
+                    {
+                        std::cout << "CSynwayIPRecorder::  Element[" << i << "]: " << reply->element[i]->str << std::endl;
+                        m_pDailyLog->WriteLog(kGeneralError, "CSynwayIPRecorder::PING Array Element[" + std::to_string(i) + "]: " + std::string(reply->element[i]->str));
+                    }
+                }
+                break;
+
+            default:
+                std::cerr << "CSynwayIPRecorder::PING: Unknown reply type." << std::endl;
+                m_pDailyLog->WriteLog(kGeneralError, "CSynwayIPRecorder::Redis PING: Unknown reply type.");
+                break;
+            }
+            freeReplyObject(reply);
+        }
+        else
+        {
+            std::cerr << "CSynwayIPRecorder::PING: Command failed. Possible Redis context or network issue." << std::endl;
+            if (m_pContext && m_pContext->err)
+            {
+                std::cerr << "CSynwayIPRecorder::Error: " << m_pContext->errstr << std::endl;
+                m_pDailyLog->WriteLog(kGeneralError, "CSynwayIPRecorder::Redis PING Error: " + std::string(m_pContext->errstr));
+            }
+            return kFailure;
+        }
+    }
+    catch (...)
+    {
+        m_pDailyLog->WriteLog(kGeneralError, "CSynwayIPRecorder::Connect_to_Redis()::Exception.");
+        return kFailure;
+    }
+    return kSuccess;
+}
+
+
+/* Reads IP recorder settings from environment variables */
+int SIPServer::ReadSipServerSettingsENV()
+{
+    try
+    {
+        m_envReader->load(); //Load env
+
+        m_sRedisHost = m_envReader->getValue("REDIS_HOST");
+        printf(("REDIS_HOST:" + m_sRedisHost + "\n").c_str());
+
+        m_nRedisPort = atoi(m_envReader->getValue("REDIS_PORT").c_str());
+        printf(("REDIS_PORT:" + std::to_string(m_nRedisPort) + "\n").c_str());
+
+		m_sRedisUsername = m_envReader->getValue("REDIS_USERNAME");
+        printf(("REDIS_USERNAME:" + m_sRedisUsername + "\n").c_str());
+
+        m_sRedisPassword = m_envReader->getValue("REDIS_PASSWORD");
+        //printf(("REDIS_PASSWORD:" + m_sRedisPassword + "\n").c_str());
+
+        m_sDataPath = m_envReader->getValue("DATADRIVE");
+        printf(("DATADRIVE:" + m_sDataPath + "\n").c_str());
+
+        m_debugLevel = atoi(m_envReader->getValue("LOGGER_STATUS").c_str());
+        printf(("LOGGER_STATUS:" + std::to_string(m_debugLevel) + "\n").c_str());
+
+        m_log = atoi(m_envReader->getValue("LOG").c_str());
+        printf(("LOG:" + std::to_string(m_log) + "\n").c_str());
+
+        m_pDailyLog = new Clogger(m_sDataPath, m_debugLevel, m_log, "Sip_Server");
+        printf("CREATING LOG FILE\n");
+        m_pDailyLog->CreateLog();
+        m_envReader->SetLog(m_pDailyLog);
+
+        int nRet = Connect_to_Redis();// connect to redis server
+        if (nRet == kFailure)
+        {
+            return kFailure;
+        }
+
+        int kRet = ReadSipServerSettingsRedis(); // Read Synway SIPServerSettings from Redis
+
+        if (kRet == kSuccess)
+        {
+            m_envReader->clearenvmap(); // Clear env map
+            m_envReader->load();
+            m_sDataPath = m_envReader->getValue("DATADRIVE");
+            printf(("DATADRIVE:" + m_sDataPath + "\n").c_str());
+            m_pDailyLog->SetDataPath(m_sDataPath);
+
+            m_debugLevel = atoi(m_envReader->getValue("LOGGER_STATUS").c_str());
+            printf(("LOGGER_STATUS:" + std::to_string(m_debugLevel) + "\n").c_str());
+            m_pDailyLog->SetDebugLevel(m_debugLevel);
+
+            m_log = atoi(m_envReader->getValue("LOG").c_str());
+            printf(("LOG:" + std::to_string(m_log) + "\n").c_str());
+            m_pDailyLog->SetLoggingEnabled(m_log);
+        }
+        snprintf(m_logString, 500, "SIPServer():ReadSipServerSettingsENV:: DATADRIVE[%s]", m_sDataPath.c_str());
+        m_pDailyLog->WriteLog(kGeneralError, m_logString);
+        snprintf(m_logString, 500, "SIPServer():ReadSipServerSettingsENV:: LOGGER_STATUS[%d]", m_debugLevel);
+        m_pDailyLog->WriteLog(kGeneralError, m_logString);
+        snprintf(m_logString, 500, "SIPServer():ReadSipServerSettingsENV:: LOG[%d]", m_log);
+        m_pDailyLog->WriteLog(kGeneralError, m_logString);
+        snprintf(m_logString, 500, "SIPServer():ReadSipServerSettingsENV:: REDIS_HOST[%s]", m_sRedisHost.c_str());
+        m_pDailyLog->WriteLog(kGeneralError, m_logString);
+        snprintf(m_logString, 500, "SIPServer():ReadSipServerSettingsENV:: REDIS_PORT[%d]", m_nRedisPort);
+        m_pDailyLog->WriteLog(kGeneralError, m_logString);
+		snprintf(m_logString, 500, "SIPServer():ReadSipServerSettingsENV:: REDIS_USERNAME[%s]", m_sRedisUsername.c_str());
+        m_pDailyLog->WriteLog(kGeneralError, m_logString);
+
+        m_EnvMap = m_envReader->getAll();
+
+        m_sServer_ip = m_EnvMap["SERVER_IP"];
+        printf(("SERVER_IP:" + m_sServer_ip + "\n").c_str());
+        snprintf(m_logString, 500, "SIPServer():ReadSipServerSettingsENV:: SERVER_IP[%s]", m_sServer_ip.c_str());
+        m_pDailyLog->WriteLog(kGeneralError, m_logString);
+        
+        m_nsip_port = atoi(m_EnvMap[(std::string)"SIP_PORT"].c_str());
+        printf(("SIP_PORT:" + std::to_string(m_nsip_port) + "\n").c_str());
+        snprintf(m_logString, 500, "SIPServer():ReadSipServerSettingsENV:: SIP_PORT[%d]", m_nsip_port);
+        m_pDailyLog->WriteLog(kGeneralError, m_logString);
+
+        m_nStart_rtp = atoi(m_EnvMap[(std::string)"START_RTP"].c_str());
+        printf(("START_RTP:" + std::to_string(m_nStart_rtp) + "\n").c_str());
+        snprintf(m_logString, 500, "SIPServer():ReadSipServerSettingsENV:: START_RTP[%d]", m_nStart_rtp);
+        m_pDailyLog->WriteLog(kGeneralError, m_logString);
+
+        m_nEnd_rtp = atoi(m_EnvMap[(std::string)"END_RTP"].c_str());
+        printf(("END_RTP:" + std::to_string(m_nEnd_rtp) + "\n").c_str());
+        snprintf(m_logString, 500, "SIPServer():ReadSipServerSettingsENV:: END_RTP[%d]",m_nEnd_rtp);
+        m_pDailyLog->WriteLog(kGeneralError, m_logString);
+
+
+        m_envReader->clearenvmap(); // Clear envmap
+
+        return kSuccess;
+    }
+    catch (const std::exception& e)
+    {
+        if (m_pDailyLog)
+        {
+            m_pDailyLog->WriteLog(kGeneralError, "SIPServer::ReadSipServerSettingsENV(): Exception");
+
+        }
+        printf(("SIPServer::ReadSipServerSettingsENV(): Exception" + std::string(e.what()) + "\n").c_str());
+    }
+    return kFailure;
+}
+
+
+/* Read SIPServerSettings from Redis */
+int SIPServer::ReadSipServerSettingsRedis()
+{
+    try
+    {
+        std::string hash = "SIP_SERVER_SETTINGS";
+        redisReply* reply = nullptr;
+
+        reply = (redisReply*)redisCommand(m_pContext, "HGETALL %s", hash.c_str());
+        // Save the settings in the environment
+        EnvReader envreader(m_pDailyLog);
+        std::map<std::string, std::string> envMap; // Map to store key-value pairs
+        envreader.load();
+        envMap = envreader.getAll();
+
+        // Iterate through the map and save values back using setValue()
+        for (const auto& pair : envMap)
+        {
+            const std::string& key = pair.first;  // Get the key
+            const std::string& value = pair.second;  // Get the value
+            envreader.setValue(key, value);  // Save the key-value pair
+        }
+
+        if (reply && reply->type == REDIS_REPLY_ARRAY) {
+            for (size_t i = 0; i < reply->elements; i += 2) 
+            {
+                std::string key = reply->element[i]->str;
+                std::string value = reply->element[i + 1]->str;
+                std::cout << key << ": " << value << std::endl;
+                m_pDailyLog->WriteLog(kGeneralError, "SIPServerSettings::processMessage - " + key + ": " + value);
+                printf(("SIPServerSettings::processMessage - " + key + ": " + value + "\n").c_str());
+
+                if (!value.empty())
+                {
+                    envreader.setValue(key, value);
+                }
+            }
+            envreader.save();
+            envreader.clearenvmap();
+            freeReplyObject(reply);
+            return kSuccess;
+        }
+        else
+        {   freeReplyObject(reply);
+            return kFailure;
+        }
+    }
+    catch (const std::exception& e)
+    {
+        if (m_pDailyLog)
+        {
+            m_pDailyLog->WriteLog(kGeneralError, "SIPServer::ReadSipServerSettingsRedis(): Exception");
+
+        }
+        printf(("SIPServer::ReadSIPServerSettingsRedis(): Exception" + std::string(e.what()) + "\n").c_str());
+    }
+    return kFailure;
 }
 
 void SIPServer::processSipMessage(const std::string& sipMsg,
@@ -227,7 +553,7 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
                      SDPParser::modifyAudioPort(sdp, session->rtp.server_port);
 
                 modifiedSDP =
-                    SDPParser::modifyConnectionIP(modifiedSDP, m_serverIP);
+                    SDPParser::modifyConnectionIP(modifiedSDP, m_sServer_ip);
 
                 headers =
                     SDPParser::updateContentLength(headers, modifiedSDP.size());
@@ -358,7 +684,7 @@ void SIPServer::processInviteMessage(const SIPParser& parser,
             SDPParser::modifyAudioPort(sdp, session->rtp.server_port);
 
         modifiedSDP =
-            SDPParser::modifyConnectionIP(modifiedSDP, m_serverIP);
+            SDPParser::modifyConnectionIP(modifiedSDP, m_sServer_ip);
 
         // update content-length
         headers = SDPParser::updateContentLength(headers, modifiedSDP.size());

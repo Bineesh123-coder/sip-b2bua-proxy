@@ -1,6 +1,6 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -g -Iinclude
-LIBS = -lpcap
+LIBS = -lpcap -lhiredis
 
 SRC = \
 	src/main.cpp \
@@ -12,7 +12,8 @@ SRC = \
 	src/call_session.cpp \
 	src/call_session_manager.cpp \
 	src/rtp_relay.cpp \
-	src/sdp_parser.cpp 
+	src/sdp_parser.cpp \
+	src/env_reader.cpp
 
 OBJ = $(SRC:.cpp=.o)
 

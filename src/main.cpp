@@ -23,18 +23,18 @@ int StartSipProxyService() {
         }
         ret = mSipServer->Start(); // Start the recorder service
         if (ret != kSuccess) {
-            std::cerr << "Error: StartSynwayAnalogRecorder::Start() failed with code: " << ret << "\n";
+            std::cerr << "Error: StartSipProxyService::Start() failed with code: " << ret << "\n";
             delete mSipServer; // Free allocated memory
             mSipServer = nullptr; // Prevent dangling pointer
             return kFailure;
         }
     }
     catch (const std::exception& e) {
-        std::cerr << "StartSynwayAnalogRecorder::EXCEPTION: " << e.what() << "\n";
+        std::cerr << "StartSipProxyService::EXCEPTION: " << e.what() << "\n";
         return kFailure;
     }
     catch (...) {
-        std::cerr << "StartSynwayAnalogRecorder::UNKNOWN EXCEPTION\n";
+        std::cerr << "StartSipProxyService::UNKNOWN EXCEPTION\n";
         return kFailure;
     }
     return ret;
