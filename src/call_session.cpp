@@ -4,7 +4,7 @@
 CallSession::CallSession()
 {
     callerPort = 0;
-    targetPort = 0;
+    calleePort = 0;
     state = "INIT";
 }
 

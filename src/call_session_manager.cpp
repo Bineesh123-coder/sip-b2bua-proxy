@@ -20,20 +20,22 @@ void CallSessionManager::addSession(std::shared_ptr<CallSession> session)
 
         std::lock_guard<std::mutex> lock(m_mutex);
 
-        auto it = m_sessions.find(session->callID);
+        auto it = m_sessions.find(session->calleeCallID);
         if (it != m_sessions.end())
         {
-            logMsg ="[WARN] Session already exists: " + session->callID;
+            logMsg ="[WARN] Session already exists: " + session->calleeCallID;
             std::cout<<logMsg<<std::endl;
             m_log->WriteLog(kDebug, logMsg);
-            
+             
             return;
         }
 
-        m_sessions[session->callID] = session;
+        m_sessions[session->calleeCallID] = session;
+        m_sessions_by_caller[session->callerCallID] = session;
+        m_sessions_by_callee[session->calleeCallID] = session;
 
 
-        logMsg ="[INFO] Session created: " + session->callID;
+        logMsg ="[INFO] Session created: " + session->calleeCallID;
         std::cout<<logMsg<<std::endl;
         m_log->WriteLog(kDebug, logMsg);
     }
@@ -117,11 +119,11 @@ void CallSessionManager::printAllSessions()
         {
             const std::shared_ptr<CallSession>& s = pair.second;
 
-            std::cout << "Call-ID: " << s->callID << "\n";
+            std::cout << "Call-ID: " << s->calleeCallID << "\n";
             std::cout << "  Caller: " << s->callerIP << ":" << s->callerPort << "\n";
-            std::cout << "  Callee: " << s->targetIP << ":" << s->targetPort << "\n";
+            std::cout << "  Callee: " << s->calleeIP << ":" << s->calleePort << "\n";
             std::cout << "  State : " << s->state << "\n\n";
-            logMsg ="Call-ID:  " + s->callID +" Caller:"+ s->callerIP+ "Callee: "+s->targetIP+"State: "+s->state;
+            logMsg ="Call-ID:  " + s->calleeCallID +" Caller:"+ s->callerIP+ "Callee: "+s->calleeIP+"State: "+s->state;
             std::cout<<logMsg<<std::endl;
             m_log->WriteLog(kDebug, logMsg); 
         }
@@ -133,4 +135,55 @@ void CallSessionManager::printAllSessions()
         std::cout << "ERROR: printAllSessions: " << e.what() << std::endl;
     }
     
+}
+
+// CallSession* CallSessionManager::getSessionByCalleeCallID(const std::string& callID)
+// {
+//     try
+//     {
+//         std::lock_guard<std::mutex> lock(m_mutex);
+
+//         for (auto& it : m_sessions)
+//         {
+//             if (it.second->calleeCallID == callID)
+//             {
+//                 return it.second.get();
+//             }
+//         }
+
+//         return nullptr;
+//     }
+//     catch (const std::exception &e)
+//     {
+//         std::cout << "ERROR: getSessionByCalleeCallID: " << e.what() << std::endl;
+//         return nullptr;
+//     }
+// }
+
+std::shared_ptr<CallSession>
+CallSessionManager::getSessionByCallerCallID(const std::string& callID)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    auto it = m_sessions_by_caller.find(callID);
+    if (it != m_sessions_by_caller.end())
+    {
+        return it->second;   // ✅ return shared_ptr
+    }
+
+    return nullptr;
+}
+
+std::shared_ptr<CallSession>
+CallSessionManager::getSessionByCalleeCallID(const std::string& callID)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    auto it = m_sessions_by_callee.find(callID);
+    if (it != m_sessions_by_callee.end())
+    {
+        return it->second;   // ✅ return shared_ptr
+    }
+
+    return nullptr;
 }

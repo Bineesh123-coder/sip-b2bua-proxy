@@ -2,6 +2,7 @@
 #define SDP_PARSER_H
 
 #include <string>
+#include <regex>
 
 struct SDPInfo {
     std::string ip;
@@ -19,6 +20,13 @@ public:
 
     static std::string updateContentLength(const std::string& headers, int sdpLength);
     static std::string cleanSDP(const std::string& sdp);
+    static std::string modifyContact(const std::string& headers, const std::string& serverIP);
+    static std::string trim(const std::string& str);
+    static std::string fixToHeader(const std::string& headers, const std::string& originalTo);
+    static std::string modifyContact(const std::string& headers,
+                          const std::string& user,
+                          const std::string& ip,
+                          int port);
 };
 
 #endif

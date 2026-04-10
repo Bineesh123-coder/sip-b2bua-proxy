@@ -19,6 +19,17 @@
 #include "rtp_relay.h"
 #include "env_reader.h"
 #include <hiredis/hiredis.h>
+#include <sstream>
+#include <random>
+
+struct UserLocation
+{
+    std::string ip;
+    uword port;
+    time_t expiry;
+};
+
+
 
 class SIPServer : public Thread{
    
@@ -47,6 +58,7 @@ class SIPServer : public Thread{
     EnvReader* m_envReader;
     redisContext* m_pContext;
     std::map<std::string, std::string> m_EnvMap;
+    std::unordered_map<std::string, UserLocation> m_registrationDB;
 
     void run();
     int ReadSipServerSettingsENV();
@@ -68,16 +80,32 @@ class SIPServer : public Thread{
                                  const std::string &sipMsg,
                                  const std::string& addr_ip,
                                  uword port);
-    std::string build100Trying(const SIPParser& parser);
-    std::string build_200_OK(const SIPParser& parser);
+    
+    void processRegisterMessage(const SIPParser& parser,
+                                 const std::string& addr_ip,
+                                 uword port);
+    std::string build100Trying(const std::shared_ptr<CallSession>& session);
+    std::string buildRingingMsg(const std::shared_ptr<CallSession>& session);
+    std::string build200OkMsg(const std::shared_ptr<CallSession>& session);
+    std::string buildAckToCallee(const SIPParser& parser,
+                                        const std::shared_ptr<CallSession>& session);
+    std::string buildBye(const SIPParser& parser,const std::shared_ptr<CallSession>& session,
+                                bool toCallee);
+    std::string build200OkForBye(const SIPParser& parser);
 
     void debug_testing();
 
     void startRTPRelay(RTPSession& rtp);
     void stopRTPRelay(RTPSession& rtp); 
+    void cleanupRegistrations();
 
+    std::string CreateNewInviteMsg(const SIPParser& parser,
+                                           const std::shared_ptr<CallSession>& session);
+    std::string generateCallID();
+    std::string generateTag();
+    std::string generateBranch();
+    std::string removeAllTags(const std::string& header);
     
-
     public:
     SIPServer();
     virtual ~SIPServer();

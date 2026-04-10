@@ -1,0 +1,29 @@
+----------------------------------------------- 2026-04-03 21:48:30.140850
+UDP message sent (299 bytes):
+
+REGISTER sip:192.168.1.7 SIP/2.0
+Via: SIP/2.0/UDP 192.168.1.7:5062;branch=z9hG4bK-3802-1-0
+From: <sip:user1@192.168.1.7>;tag=1
+To: <sip:user1@192.168.1.7>
+Call-ID: 1-3802@192.168.1.7
+CSeq: 1 REGISTER
+Contact: <sip:user1@192.168.1.7:5062>
+Max-Forwards: 70
+Expires: 3600
+Content-Length: 0
+
+
+----------------------------------------------- 2026-04-03 21:48:30.141130
+UDP message received [277] bytes :
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 192.168.1.7:5062;branch=z9hG4bK-3802-1-0
+From: <sip:user1@192.168.1.7>;tag=1
+To: <sip:user1@192.168.1.7>;tag=server123
+Call-ID: 1-3802@192.168.1.7
+CSeq: 1 REGISTER
+Contact: <sip:user1@192.168.1.7:5062>
+Expires: 3600
+Content-Length: 0
+
+

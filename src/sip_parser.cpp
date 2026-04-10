@@ -206,3 +206,83 @@ std::string SIPParser::trim(const std::string& str) const
     }
     
 }
+
+std::string SIPParser::getFromUser() const
+{
+    try
+    {
+        std::string from = getFrom();
+
+        // Find "sip:"
+        size_t sipPos = from.find("sip:");
+        if (sipPos == std::string::npos)
+            return "";
+
+        // Find '@'
+        size_t atPos = from.find("@", sipPos);
+        if (atPos == std::string::npos)
+            return "";
+
+        // Extract username between sip: and @
+        std::string user = from.substr(sipPos + 4, atPos - (sipPos + 4));
+
+        return user;
+    }
+    catch (const std::exception &e)
+    {
+        std::cout << "ERROR: getFromUser: " << e.what() << std::endl;
+        return "";
+    }
+}
+
+std::string SIPParser::getToUser() const
+{
+    try
+    {
+        std::string to = getTo();  // get full To header
+
+        // Find "sip:"
+        size_t sipPos = to.find("sip:");
+        if (sipPos == std::string::npos)
+            return "";
+
+        // Find '@'
+        size_t atPos = to.find("@", sipPos);
+        if (atPos == std::string::npos)
+            return "";
+
+        // Extract username between sip: and @
+        std::string user = to.substr(sipPos + 4, atPos - (sipPos + 4));
+
+        return user;
+    }
+    catch (const std::exception &e)
+    {
+        std::cout << "ERROR: getToUser: " << e.what() << std::endl;
+        return "";
+    }
+}
+
+std::string SIPParser::getContact() const
+{
+    return getHeader("Contact");
+}
+
+std::string SIPParser::getViaBranch() const
+{
+    std::string via = getHeader("Via");
+    
+    // Find "branch="
+    size_t pos = via.find("branch=");
+    if (pos == std::string::npos) return "";
+    
+    pos += 7; // Move past "branch="
+    
+    // Find the end of the branch value (marked by next ; or end of line)
+    size_t end = via.find(";", pos);
+    if (end == std::string::npos) {
+        return via.substr(pos); // Take until end of string
+    }
+    
+    return via.substr(pos, end - pos);
+}

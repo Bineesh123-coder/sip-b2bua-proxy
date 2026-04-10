@@ -134,3 +134,52 @@ sipp -sf uas_delay.xml -p 5061
 # Terminal 3
 sipp -sf uac_cancel.xml 127.0.0.1:5060 -p 5062 -m 1 -trace_msg
 
+
+🔥 STEP 2 — RUN SIPp WITH RTP
+Terminal 1 (UAS)
+sipp -sn uas -p 5061 -rtp_echo
+Terminal 2 (Proxy)
+./sip_proxy
+Terminal 3 (UAC)
+sipp -sn uac 127.0.0.1:5060 -m 1 -rtp_echo -trace_msg
+sipp -sn uac 192.168.2.255:5060 -m 1 -rtp_echo -trace_msg
+sipp -sn uac 192.168.1.7:5060 -m 1 -rtp_echo -trace_msg
+
+
+chmod -R 777 /opt/app/DATA/LOG/Sip_Server
+
+
+Caller              B2BUA               Callee
+  | INVITE --------> |                   |
+  |                 | INVITE ---------> |
+  |                 | <------ 100 ------|
+  | <------ 100 ----|                   |
+  |                 | <------ 180 ------|
+  | <------ 180 ----|                   |
+  |                 | <------ 200 ------|
+  | <------ 200 ----|                   |
+  | ACK ----------> |                   |
+  |                 | ACK ----------->  |
+  | RTP <=========> | <=============>   |
+  | BYE ----------> |                   |
+  |                 | BYE ----------->  |
+  |                 | <------ 200 ------|
+  | <------ 200 ----|                   |
+
+
+
+1001 REGISTER → 200 OK
+1004 REGISTER → 200 OK
+
+1004 → INVITE → Proxy
+Proxy → 100 Trying → 1004
+
+Proxy → INVITE → 1001
+
+1001 → 100 Trying → Proxy → 1004
+1001 → 180 Ringing → Proxy → 1004
+1001 → 200 OK → Proxy → 1004
+
+1004 → ACK → Proxy → 1001
+
+ CALL ESTABLISHED

@@ -7,6 +7,7 @@
 #include "call_session.h"
 #include <memory>
 #include "logger.h"
+#include <unordered_map>
 
 class CallSessionManager
 {
@@ -15,6 +16,8 @@ private:
     std::mutex m_mutex;
     Clogger* m_log;
     std::string logMsg;
+    std::unordered_map<std::string, std::shared_ptr<CallSession>> m_sessions_by_caller;
+    std::unordered_map<std::string, std::shared_ptr<CallSession>> m_sessions_by_callee;
 
 public:
     CallSessionManager(Clogger* logger);
@@ -24,6 +27,10 @@ public:
     void removeSession(const std::string& callID);
     bool hasSession(const std::string& callID);
     void printAllSessions();
+    //CallSession* getSessionByCalleeCallID(const std::string& callID);
+    //CallSession* getSessionByCallerCallID(const std::string& callID);
+    std::shared_ptr<CallSession>getSessionByCallerCallID(const std::string& callID);
+    std::shared_ptr<CallSession>getSessionByCalleeCallID(const std::string& callID);
 };
 
 #endif

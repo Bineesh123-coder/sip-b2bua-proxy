@@ -31,6 +31,11 @@ public:
     void parseRequestURI(const std::string& line,
                      std::string& ip,
                      int& port) const;
+    std::string getFromUser() const;
+    std::string getToUser() const;
+    std::string getContact() const;
+    std::string getViaBranch() const;
+    
 
 private:
     std::string m_method;
