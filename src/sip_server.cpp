@@ -537,7 +537,7 @@ std::string SIPServer::buildAckToCallee(const SIPParser& parser,
     }
     catch (const std::exception &e)
     {
-        std::cout << "ERROR: buildAckToCallee: " << e.what() << std::endl;
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer:: buildAckToCallee: " + std::string(e.what()));
         return "";
     }
 }
@@ -665,8 +665,7 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
     }
     catch (const std::exception& e)
     {
-        std::cout << "ERROR: " << e.what() << std::endl;
-        m_pDailyLog->WriteLog(kGeneralError, "processSipMessage: " + std::string(e.what()));
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::processSipMessage: " + std::string(e.what()));
     }
 }
 
@@ -676,38 +675,46 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
 void SIPServer::processRegisterMessage(const SIPParser& parser,
                                        const std::string& addr_ip,
                                        uword port)
-{
-    std::string username = parser.getFromUser();
-    std::string callID   = parser.getCallID();
-    std::string via      = parser.getVia();
-    std::string from     = parser.getFrom();
-    std::string to       = parser.getTo();
-    std::string cseq     = parser.getCSeq();
+{   
+    try{
 
-    int expires = 3600;
-    std::string expHeader = parser.getHeader("Expires");
-    if (!expHeader.empty())
-        expires = std::stoi(expHeader);
+        std::string username = parser.getFromUser();
+        std::string callID   = parser.getCallID();
+        std::string via      = parser.getVia();
+        std::string from     = parser.getFrom();
+        std::string to       = parser.getTo();
+        std::string cseq     = parser.getCSeq();
 
-    m_registrationDB[username] = { addr_ip, port, time(nullptr) + expires };
+        int expires = 3600;
+        std::string expHeader = parser.getHeader("Expires");
+        if (!expHeader.empty())
+            expires = std::stoi(expHeader);
 
-    logMsg = "[REGISTER] User: " + username + " IP: " + addr_ip + " Port: " + std::to_string(port);
-    std::cout << logMsg << std::endl;
-    m_pDailyLog->WriteLog(kDebug, logMsg);
+        m_registrationDB[username] = { addr_ip, port, time(nullptr) + expires };
 
-    std::string response =
-        "SIP/2.0 200 OK\r\n"
-        "Via: " + via + "\r\n"
-        "From: " + from + "\r\n"
-        "To: " + to + ";tag=server123\r\n"
-        "Call-ID: " + callID + "\r\n"
-        "CSeq: " + cseq + "\r\n"
-        "Contact: <sip:" + username + "@" + addr_ip + ":" + std::to_string(port) + ">\r\n"
-        "Expires: 3600\r\n"
-        "Content-Length: 0\r\n\r\n";
+        logMsg = "[REGISTER] User: " + username + " IP: " + addr_ip + " Port: " + std::to_string(port);
+        std::cout << logMsg << std::endl;
+        m_pDailyLog->WriteLog(kDebug, logMsg);
 
-    m_pUDPSocket->send(response.c_str(), response.length(),
-        inet_addr(addr_ip.c_str()), port);
+        std::string response =
+            "SIP/2.0 200 OK\r\n"
+            "Via: " + via + "\r\n"
+            "From: " + from + "\r\n"
+            "To: " + to + ";tag=server123\r\n"
+            "Call-ID: " + callID + "\r\n"
+            "CSeq: " + cseq + "\r\n"
+            "Contact: <sip:" + username + "@" + addr_ip + ":" + std::to_string(port) + ">\r\n"
+            "Expires: 3600\r\n"
+            "Content-Length: 0\r\n\r\n";
+
+        m_pUDPSocket->send(response.c_str(), response.length(),
+            inet_addr(addr_ip.c_str()), port);
+    }
+    catch (const std::exception& e)
+    {
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR:SIPServer::processRegisterMessage: " + std::string(e.what()));
+    }
+    
 }
 
 // ===================================================================
@@ -799,7 +806,6 @@ void SIPServer::processInviteMessage(const SIPParser& parser,
         std::cout << logMsg << std::endl;
         m_pDailyLog->WriteLog(kDebug, logMsg);
        
-
     }
     catch (const std::exception& e)
     {
@@ -836,10 +842,10 @@ void SIPServer::processAckMessage(const SIPParser& parser,
         std::cout << logMsg << std::endl;
         m_pDailyLog->WriteLog(kDebug, logMsg);
 
-
-
     }
-    catch (...) {}
+    catch (const std::exception& e) {
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR:processAckMessage " + std::string(e.what()));
+    }
 }
 
 // ===================================================================
@@ -899,7 +905,9 @@ void SIPServer::processByeMessage(const SIPParser& parser,
         m_pDailyLog->WriteLog(kDebug, logMsg);
 
     }
-    catch (...) {}
+    catch (const std::exception& e) {
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR:processByeMessage " + std::string(e.what()));
+    }
 }
 
 // ===================================================================
@@ -932,7 +940,10 @@ void SIPServer::processCancelMessage(const SIPParser& parser,
         session->state = "TERMINATED";
         m_callsessionManager->removeSession(callID);
     }
-    catch (...) {}
+    catch (const std::exception &e)
+    {
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::build100Trying: " + std::string(e.what()));
+    }
 }
 
 // ===================================================================
@@ -954,7 +965,7 @@ std::string SIPServer::build100Trying(const std::shared_ptr<CallSession>& sessio
     }
     catch (const std::exception &e)
     {
-        std::cout << "ERROR: build100Trying: " << e.what() << std::endl;
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::build100Trying: " + std::string(e.what())); 
         return "";
     }
 }
@@ -983,7 +994,7 @@ std::string SIPServer::buildRingingMsg(const std::shared_ptr<CallSession>& sessi
     }
     catch (const std::exception &e)
     {
-        std::cout << "ERROR: buildRingingMsg: " << e.what() << std::endl;
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::buildRingingMsg: " + std::string(e.what())); 
         return "";
     }
 }
@@ -1013,7 +1024,7 @@ std::string SIPServer::build200OkMsg(const std::shared_ptr<CallSession>& session
     }
     catch (const std::exception &e)
     {
-        std::cout << "ERROR: build200OkMsg: " << e.what() << std::endl;
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::build200OkMsg: " + std::string(e.what())); 
         return "";
     }
 }
@@ -1197,7 +1208,7 @@ void SIPServer::debug_testing()
     }
     catch (const std::exception &e)
     {
-        std::cout << "ERROR: debug_testing(): " << e.what() << std::endl;
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::debug_testing: " + std::string(e.what())); 
     }
 }
 
@@ -1210,7 +1221,7 @@ void SIPServer::startRTPRelay(RTPSession &session) {
     }
     catch (const std::exception &e)
     {
-        std::cout << "ERROR: SIPServer::startRTPRelay: " << e.what() << std::endl;
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::startRTPRelay: " + std::string(e.what())); 
     }
     
 }
@@ -1231,8 +1242,9 @@ void SIPServer::stopRTPRelay(RTPSession& rtp)
     }
     catch (const std::exception &e)
     {
-        std::cout << "ERROR: SIPServer::stopRTPRelay: " << e.what() << std::endl;
+       m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::StopRTPRelay: " + std::string(e.what())); 
     }
+
 }          
 
 /* Clean up Registrations*/
@@ -1258,7 +1270,7 @@ void SIPServer::cleanupRegistrations()
     }
     catch (const std::exception &e)
     {
-        std::cout << "ERROR: SIPServer::cleanupRegistrations: " << e.what() << std::endl;
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::cleanupRegistrations: " + std::string(e.what())); 
     }
 }
 
@@ -1338,7 +1350,7 @@ std::string SIPServer::CreateNewInviteMsg(const SIPParser& parser,
 
     }catch (const std::exception& e)
     {
-        std::cout << "ERROR: CreateNewInviteMsg: " << e.what() << std::endl;
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::CreateNewInviteMsg: " + std::string(e.what())); 
         return "";
     }
 
@@ -1365,7 +1377,7 @@ std::string SIPServer::generateCallID()
     }
     catch (const std::exception& e)
     {
-        std::cout << "ERROR: generateCallID: " << e.what() << std::endl;
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::generateCallID: " + std::string(e.what())); 
         return "";
     }
     
@@ -1395,7 +1407,7 @@ std::string SIPServer::generateTag()
     }
     catch (const std::exception& e)
     {
-        std::cout << "ERROR: generateTag: " << e.what() << std::endl;
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::generateTag: " + std::string(e.what())); 
         return "";
     }
     
@@ -1421,7 +1433,7 @@ std::string SIPServer::generateBranch()
     }
     catch (const std::exception& e)
     {
-        std::cout << "ERROR: generateBranch: " << e.what() << std::endl;
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::generateBranch: " + std::string(e.what())); 
         return "";
     }
     
@@ -1450,7 +1462,7 @@ std::string SIPServer::removeAllTags(const std::string& header)
     }
     catch (const std::exception& e)
     {
-        std::cout << "ERROR: removeAllTags: " << e.what() << std::endl;
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::removeAllTag: " + std::string(e.what())); 
         return "";
     }
 }
@@ -1504,7 +1516,7 @@ std::string SIPServer::buildBye(const SIPParser& parser,const std::shared_ptr<Ca
     }
     catch (const std::exception &e)
     {
-        std::cout << "ERROR: buildBye: " << e.what() << std::endl;
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::buildBye: " + std::string(e.what())); 
         return "";
     }
 }
@@ -1528,7 +1540,7 @@ std::string SIPServer::build200OkForBye(const SIPParser& parser)
     }
     catch (const std::exception &e)
     {
-        std::cout << "ERROR: build200OkForBye: " << e.what() << std::endl;
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::build200OkForBye: " + std::string(e.what())); 
         return "";
     }
 }
