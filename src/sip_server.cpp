@@ -223,7 +223,7 @@ int SIPServer::Connect_to_Redis()
         }
 
 		// ================================================================
-        //  🔐 Authenticate if password is set (supports username + password)
+        //   Authenticate if password is set (supports username + password)
         // ================================================================
         if (!m_sRedisPassword.empty())
         {
@@ -507,9 +507,7 @@ int SIPServer::ReadSipServerSettingsRedis()
     return kFailure;
 }
 
-
-
-
+/* Build ACK */
 std::string SIPServer::buildAckToCallee(const SIPParser& parser,
                                         const std::shared_ptr<CallSession>& session)
 {
@@ -544,6 +542,7 @@ std::string SIPServer::buildAckToCallee(const SIPParser& parser,
     }
 }
 
+/* Process sip message */
 void SIPServer::processSipMessage(const std::string& sipMsg,
                                   const std::string& addr_ip,
                                   uword port)
@@ -564,12 +563,9 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
             logMsg = "response sip msg\n"+sipMsg;
             std::cout << logMsg << std::endl;
             m_pDailyLog->WriteLog(kDebug, logMsg);
-            // std::string callID = parser.getCallID();
-            // CallSession* session = m_callsessionManager->getSession(callID);
-
+            
             std::string callID = parser.getCallID();
             auto session = m_callsessionManager->getSessionByCalleeCallID(callID);
-
 
             if (!session)
             {
@@ -581,27 +577,6 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
 
             std::string statusLine = firstLine;
             std::string cseqm      = parser.getCSeqMethod();
-
-            // // ==================== GENERIC RESPONSE FORWARDING ====================
-            // // This was the BIGGEST bug before - now ALL responses go through
-            // if (addr_ip == session->calleeIP && port == session->calleePort)
-            // {
-            //     // Response from CALLEE → forward to CALLER
-            //     m_pUDPSocket->send(sipMsg.c_str(), sipMsg.length(),
-            //         inet_addr(session->callerIP.c_str()), session->callerPort);
-                
-            //     logMsg = "[RESPONSE] Callee → Caller | " + statusLine + " | CallID: " + callID;
-            // }
-            // else
-            // {
-            //     // Response from CALLER → forward to CALLEE
-            //     m_pUDPSocket->send(sipMsg.c_str(), sipMsg.length(),
-            //         inet_addr(session->calleeIP.c_str()), session->calleePort);
-                
-            //     logMsg = "[RESPONSE] Caller → Callee | " + statusLine + " | CallID: " + callID;
-            // }
-            // std::cout << logMsg << std::endl;
-            // m_pDailyLog->WriteLog(kDebug, logMsg);
 
             // ==============================
             //  STATE MACHINE
@@ -639,7 +614,7 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
                      cseqm.find("BYE") != std::string::npos)
             {
                 session->state = "TERMINATED";
-                //stopRTPRelay(session->rtp);   
+                stopRTPRelay(session->rtp);   
                 m_callsessionManager->removeSession(callID);
                 logMsg = "[STATE] TERMINATED (BYE)";
             }
@@ -662,7 +637,7 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
         }
 
         // ==============================
-        // 🟢 HANDLE REQUESTS
+        //  HANDLE REQUESTS
         // ==============================
         if (method == "INVITE")
         {   
@@ -696,7 +671,7 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
 }
 
 // ===================================================================
-// REGISTER (small cleanup only)
+// REGISTER 
 // ===================================================================
 void SIPServer::processRegisterMessage(const SIPParser& parser,
                                        const std::string& addr_ip,
@@ -736,7 +711,7 @@ void SIPServer::processRegisterMessage(const SIPParser& parser,
 }
 
 // ===================================================================
-// INVITE - FIXED (Record-Route + clean header rebuild)
+// INVITE 
 // ===================================================================
 void SIPServer::processInviteMessage(const SIPParser& parser,
                                      const std::string &data,
@@ -823,20 +798,6 @@ void SIPServer::processInviteMessage(const SIPParser& parser,
         logMsg = "[ROUTING] Sending NEW INVITE to " + session->calleeIP + " " + std::to_string(session->calleePort);
         std::cout << logMsg << std::endl;
         m_pDailyLog->WriteLog(kDebug, logMsg);
-
-        // std::string  ringing  = buildRingingMsg(session);
-        // m_pUDPSocket->send(ringing.c_str(), ringing.length(), inet_addr(ip.c_str()), port);
-
-        // logMsg = "Sent ringing msg to caller  " + ip + ":" + std::to_string(port)+"\n"+ringing;
-        // std::cout << logMsg << std::endl;
-        // m_pDailyLog->WriteLog(kDebug, logMsg);
-        
-        // std::string  ok200msg = build200OkMsg(session,sdp);
-        // m_pUDPSocket->send(ok200msg.c_str(), ok200msg.length(), inet_addr(ip.c_str()), port);
-
-        // logMsg = "Sent 200ok msg to caller  " + ip + ":" + std::to_string(port)+"\n"+ok200msg;
-        // std::cout << logMsg << std::endl;
-        // m_pDailyLog->WriteLog(kDebug, logMsg);
        
 
     }
@@ -847,7 +808,7 @@ void SIPServer::processInviteMessage(const SIPParser& parser,
 }
 
 // ===================================================================
-// ACK (unchanged - already correct)
+// ACK 
 // ===================================================================
 void SIPServer::processAckMessage(const SIPParser& parser,
                                   const std::string &sipMsg,
@@ -875,24 +836,14 @@ void SIPServer::processAckMessage(const SIPParser& parser,
         std::cout << logMsg << std::endl;
         m_pDailyLog->WriteLog(kDebug, logMsg);
 
-        // if (addr_ip == session->callerIP && port == session->callerPort)
-        // {
-        //     m_pUDPSocket->send(sipMsg.c_str(), sipMsg.length(),
-        //         inet_addr(session->calleeIP.c_str()), session->calleePort);
-        //     std::cout << "[ACK] Caller → Callee\n";
-        // }
-        // else
-        // {
-        //     m_pUDPSocket->send(sipMsg.c_str(), sipMsg.length(),
-        //         inet_addr(session->callerIP.c_str()), session->callerPort);
-        //     std::cout << "[ACK] Callee → Caller\n";
-        // }
+
+
     }
     catch (...) {}
 }
 
 // ===================================================================
-// NEW: BYE & CANCEL (simple forwarding)
+//  BYE 
 // ===================================================================
 void SIPServer::processByeMessage(const SIPParser& parser,
                                   const std::string &sipMsg,
@@ -924,7 +875,7 @@ void SIPServer::processByeMessage(const SIPParser& parser,
             return;
         }
 
-        // 1️⃣ Send 200 OK to sender
+        //  Send 200 OK to sender
         std::string ok = build200OkForBye(parser);
 
         m_pUDPSocket->send(ok.c_str(), ok.length(),
@@ -934,7 +885,7 @@ void SIPServer::processByeMessage(const SIPParser& parser,
         std::cout << logMsg << std::endl;
         m_pDailyLog->WriteLog(kDebug, logMsg);
 
-        // 2️⃣ Send BYE to other side
+        //  Send BYE to other side
         std::string bye = buildBye(parser,session, fromCaller);
 
         std::string targetIP = fromCaller ? session->calleeIP : session->callerIP;
@@ -951,6 +902,9 @@ void SIPServer::processByeMessage(const SIPParser& parser,
     catch (...) {}
 }
 
+// ===================================================================
+//  CANCEL 
+// ===================================================================
 void SIPServer::processCancelMessage(const SIPParser& parser,
                                      const std::string &sipMsg,
                                      const std::string& addr_ip,
@@ -981,6 +935,9 @@ void SIPServer::processCancelMessage(const SIPParser& parser,
     catch (...) {}
 }
 
+// ===================================================================
+//  TRYING
+// ===================================================================
 std::string SIPServer::build100Trying(const std::shared_ptr<CallSession>& session)
 {
     try{
@@ -1002,7 +959,9 @@ std::string SIPServer::build100Trying(const std::shared_ptr<CallSession>& sessio
     }
 }
 
-
+// ===================================================================
+//  RINIGING
+// ===================================================================
 std::string SIPServer::buildRingingMsg(const std::shared_ptr<CallSession>& session)
 {
     try{
@@ -1029,6 +988,9 @@ std::string SIPServer::buildRingingMsg(const std::shared_ptr<CallSession>& sessi
     }
 }
 
+// ===================================================================
+//  200 OK 
+// ===================================================================
 std::string SIPServer::build200OkMsg(const std::shared_ptr<CallSession>& session)
 {
     try{
@@ -1055,6 +1017,7 @@ std::string SIPServer::build200OkMsg(const std::shared_ptr<CallSession>& session
         return "";
     }
 }
+/* for testing */
 void SIPServer::debug_testing()
 {
     try
@@ -1238,7 +1201,7 @@ void SIPServer::debug_testing()
     }
 }
 
-//  FIX: use std::ref
+/* Start RTPRelay */ 
 void SIPServer::startRTPRelay(RTPSession &session) {
     try{
 
@@ -1252,6 +1215,7 @@ void SIPServer::startRTPRelay(RTPSession &session) {
     
 }
 
+/* Stop RTPRelay */ 
 void SIPServer::stopRTPRelay(RTPSession& rtp)
 {
     
@@ -1271,6 +1235,7 @@ void SIPServer::stopRTPRelay(RTPSession& rtp)
     }
 }          
 
+/* Clean up Registrations*/
 void SIPServer::cleanupRegistrations()
 {
     
@@ -1297,23 +1262,20 @@ void SIPServer::cleanupRegistrations()
     }
 }
 
-
+/* Create New Invite Msg */
 std::string SIPServer::CreateNewInviteMsg(const SIPParser& parser,
                                            const std::shared_ptr<CallSession>& session)
 {   
     try{
 
-            //  NEW Call-ID (B2BUA style)
+        //  NEW Call-ID 
         std::string newCallID = session->calleeCallID;
-        //session->b2b_call_id = newCallID;
 
         //  NEW From tag
         std::string from = parser.getFrom();
         from = removeAllTags(from);
         from += ";tag=" + generateTag(); 
 
-        //  To (no tag initially)
-        //std::string to = parser.getTo();
         std::string to = "<sip:"+parser.getToUser() + "@" +session->calleeIP+">";
 
         session->calleeFrom = from;
@@ -1325,7 +1287,7 @@ std::string SIPServer::CreateNewInviteMsg(const SIPParser& parser,
         std::string requestLine = "INVITE sip:" + parser.getToUser() + "@" +
                                 session->calleeIP + " SIP/2.0\r\n";
 
-        //  Via (ONLY your Via)
+        //  Via 
         std::string via =
             "Via: SIP/2.0/UDP " + m_sServer_ip +
             ":5060;branch=" + generateBranch() + ";rport\r\n";
@@ -1383,6 +1345,7 @@ std::string SIPServer::CreateNewInviteMsg(const SIPParser& parser,
     
 }
 
+/* generate CallID*/
 std::string SIPServer::generateCallID()
 {   
     try{
@@ -1408,6 +1371,7 @@ std::string SIPServer::generateCallID()
     
 }
 
+/* generate Tag */
 std::string SIPServer::generateTag()
 {   
     try{
@@ -1437,6 +1401,7 @@ std::string SIPServer::generateTag()
     
 }
 
+/* generate Branch*/
 std::string SIPServer::generateBranch()
 {   
     try{
@@ -1490,6 +1455,7 @@ std::string SIPServer::removeAllTags(const std::string& header)
     }
 }
 
+/* build BYE */
 std::string SIPServer::buildBye(const SIPParser& parser,const std::shared_ptr<CallSession>& session,
                                 bool toCallee)
 {
@@ -1542,7 +1508,9 @@ std::string SIPServer::buildBye(const SIPParser& parser,const std::shared_ptr<Ca
         return "";
     }
 }
-
+// ===================================================================
+//  200 OK BYE 
+// ===================================================================
 std::string SIPServer::build200OkForBye(const SIPParser& parser)
 {
     try

@@ -137,29 +137,6 @@ void CallSessionManager::printAllSessions()
     
 }
 
-// CallSession* CallSessionManager::getSessionByCalleeCallID(const std::string& callID)
-// {
-//     try
-//     {
-//         std::lock_guard<std::mutex> lock(m_mutex);
-
-//         for (auto& it : m_sessions)
-//         {
-//             if (it.second->calleeCallID == callID)
-//             {
-//                 return it.second.get();
-//             }
-//         }
-
-//         return nullptr;
-//     }
-//     catch (const std::exception &e)
-//     {
-//         std::cout << "ERROR: getSessionByCalleeCallID: " << e.what() << std::endl;
-//         return nullptr;
-//     }
-// }
-
 std::shared_ptr<CallSession>
 CallSessionManager::getSessionByCallerCallID(const std::string& callID)
 {
