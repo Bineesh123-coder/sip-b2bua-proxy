@@ -35,6 +35,7 @@ public:
     std::string getToUser() const;
     std::string getContact() const;
     std::string getViaBranch() const;
+    std::string getToTag() const;
     
 
 private:

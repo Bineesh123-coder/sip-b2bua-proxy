@@ -17,6 +17,7 @@ public:
     std::string callerCSeq;
     std::string callerIP;
     std::string callersdp;
+    std::string callerUser;
     uword callerPort;
 
     // ===== CALLEE SIDE =====
@@ -25,7 +26,12 @@ public:
     uword calleePort;
     std::string calleeFrom;
     std::string calleeTo;
+    std::string calleetoTag;
+    std::string calleefromTag;
+    std::string calleeBranch;
+    std::string calleeUser;
     int calleeCSeq;
+
 
     // ===== B2BUA CONTROL =====
     std::string toTag;        // generated once
@@ -41,6 +47,8 @@ public:
 
     // State
     std::string state;
+
+    bool isTerminated;
 
     CallSession();
 

@@ -286,3 +286,19 @@ std::string SIPParser::getViaBranch() const
     
     return via.substr(pos, end - pos);
 }
+
+std::string SIPParser::getToTag() const
+{
+    std::string toHeader = getHeader("To");
+
+    size_t pos = toHeader.find("tag=");
+    if (pos == std::string::npos)
+        return "";
+
+    size_t end = toHeader.find(";", pos + 4);
+
+    if (end == std::string::npos)
+        return toHeader.substr(pos + 4);
+
+    return toHeader.substr(pos + 4, end - (pos + 4));
+}

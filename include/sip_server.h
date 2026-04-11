@@ -89,7 +89,7 @@ class SIPServer : public Thread{
     std::string build200OkMsg(const std::shared_ptr<CallSession>& session);
     std::string buildAckToCallee(const SIPParser& parser,
                                         const std::shared_ptr<CallSession>& session);
-    std::string buildBye(const SIPParser& parser,const std::shared_ptr<CallSession>& session,
+    std::string buildBye(const std::shared_ptr<CallSession>& session,
                                 bool toCallee);
     std::string build200OkForBye(const SIPParser& parser);
 

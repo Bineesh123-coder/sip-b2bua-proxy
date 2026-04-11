@@ -46,7 +46,7 @@ void rtpRelayWorker(RTPSession &session)
 
             int size = rtpSocket.receive((sbyte*)buffer, sizeof(buffer), ip, port);
 
-            if (size <= 0) continue;
+            if (size < 12) continue;
 
             struct in_addr addr;
             addr.s_addr = ip;
@@ -57,10 +57,8 @@ void rtpRelayWorker(RTPSession &session)
             uword dest_port;
 
             //  Identify by IP (NOT PORT)
-            if (src_ip == session.caller_ip)
+            if (src_ip == session.caller_ip && src_port == session.caller_port )
             {
-                // Update port dynamically (Symmetric RTP)
-                session.caller_port = src_port;
 
                 dest_ip = inet_addr(session.callee_ip.c_str());
                 dest_port = session.callee_port;
@@ -87,7 +85,10 @@ void rtpRelayWorker(RTPSession &session)
             rtpSocket.send(buffer, size, dest_ip, dest_port);
         }
 
-        close(session.sockfd);
+        //close(session.sockfd);
+        session.running = false;
+        shutdown(session.sockfd, SHUT_RDWR);
+        
     }
     catch (const std::exception &e)
     {
