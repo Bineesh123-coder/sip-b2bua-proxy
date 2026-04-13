@@ -528,7 +528,7 @@ std::string SIPServer::buildAckToCallee(const SIPParser& parser,
             via +
             "Max-Forwards: 70\r\n"
             "From: " + session->calleeFrom + "\r\n" +   // caller side
-            "To: " + session->calleeTo +";tag=" + session->toTag+"\r\n"+
+            "To: " + session->calleeTo +";tag=" + session->calleetoTag+"\r\n"+
             "Call-ID: " + session->calleeCallID + "\r\n" + 
             "CSeq: 1 ACK\r\n"
             "Content-Length: 0\r\n\r\n";
@@ -564,8 +564,15 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
             std::cout << logMsg << std::endl;
             m_pDailyLog->WriteLog(kDebug, logMsg);
             
+           // When a response comes in
             std::string callID = parser.getCallID();
+
+            // You must check BOTH leg IDs because you don't know which leg 
+            // the response is coming from until you find the session.
             auto session = m_callsessionManager->getSessionByCalleeCallID(callID);
+            if (!session) {
+                session = m_callsessionManager->getSessionByCallerCallID(callID);
+            }
 
             if (!session)
             {
@@ -597,7 +604,7 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
             else if (statusLine.find("200") != std::string::npos &&
                      cseqm.find("INVITE") != std::string::npos)
             {   
-                session->toTag = parser.getToTag();
+                session->calleetoTag = parser.getToTag();
                 std::string  ok200msg = build200OkMsg(session);
                 m_pUDPSocket->send(ok200msg.c_str(), ok200msg.length(), inet_addr(session->callerIP.c_str()), session->callerPort);
 
@@ -614,14 +621,23 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
                      cseqm.find("BYE") != std::string::npos)
             {
                 session->state = "TERMINATED";
-                stopRTPRelay(session->rtp);   
-                m_callsessionManager->removeSession(callID);
+                //stopRTPRelay(session->rtp);   
+                //m_callsessionManager->removeSession(callID);
                 logMsg = "[STATE] TERMINATED (BYE)";
+
+                session->byeConfirmedCount++;
+
+                if (session->byeConfirmedCount == 2)
+                {
+                    session->state = "TERMINATED";
+                    logMsg = "[STATE] TERMINATED (BYE)";
+                    m_callsessionManager->removeSession(callID);
+                }
             }
             else if (statusLine.find("487") != std::string::npos)
             {
                 session->state = "TERMINATED";
-                //m_callsessionManager->removeSession(callID);
+                m_callsessionManager->removeSession(callID);
                 logMsg = "[STATE] TERMINATED (487)";
             }
             else if (statusLine.find("200") != std::string::npos)
@@ -761,14 +777,21 @@ void SIPServer::processInviteMessage(const SIPParser& parser,
         session->callerPort    = port;
         session->callersdp     = sdp;
         session->callerUser    = parser.getFromUser();
+        session->callertoTag = generateTag();
         session->calleeCallID  = generateCallID();
         //session->calleeCallID = "18a4ecbad391a65277ca95695340b8c2@192.168.1.7";
         session->calleeIP      = it->second.ip;
         session->calleePort    = it->second.port;
         session->calleeUser    = parser.getToUser();
-        session->calleetoTag = generateTag();
+        // inside processInviteMessage...
+        //session->callerFrom = parser.getFrom(); // e.g. <sip:1001@ip>;tag=abc
+        //session->callerTo   = parser.getTo();   // e.g. <sip:1002@ip> (No tag yet)
+        session->serverTagForCaller = generateTag(); // The tag the server uses toward the caller
+        session->serverTagForCallee = generateTag(); // The tag the server uses toward the callee
+        //session->calleetoTag = generateTag();
         session->state      = "INVITE_SENT";
         session->isTerminated = false;
+        session->byeConfirmedCount = 0;
         m_callsessionManager->addSession(session);
 
         // 100 Trying
@@ -924,6 +947,7 @@ void SIPServer::processByeMessage(const SIPParser& parser,
             m_pDailyLog->WriteLog(kDebug, logMsg);
 
             session->isTerminated = true;
+            session->byeConfirmedCount++;
         }        
 
     }
@@ -999,8 +1023,8 @@ std::string SIPServer::buildRingingMsg(const std::shared_ptr<CallSession>& sessi
 {
     try{
         std::string to = removeAllTags(session->callerTo);
-        to += ";tag=" + session->calleetoTag;
-
+        to += ";tag=" + session->callertoTag;
+        //session->callertoTag = generateTag();
         std::string response =
         "SIP/2.0 180 Ringing\r\n"
         "Via: " + session->callerVia + "\r\n"
@@ -1028,7 +1052,7 @@ std::string SIPServer::build200OkMsg(const std::shared_ptr<CallSession>& session
 {
     try{
         std::string to = removeAllTags(session->callerTo);
-        to += ";tag=" + session->toTag;
+        to += ";tag=" + session->callertoTag;
 
         std::string response =
         "SIP/2.0 200 OK\r\n"
@@ -1493,56 +1517,101 @@ std::string SIPServer::removeAllTags(const std::string& header)
     }
 }
 
-/* build BYE */
-std::string SIPServer::buildBye(const std::shared_ptr<CallSession>& session,
-                                bool toCallee)
+// /* build BYE */
+// std::string SIPServer::buildBye(const std::shared_ptr<CallSession>& session,
+//                                 bool toCallee)
+// {
+//     try
+//     {
+//         std::string targetIP;
+//         std::string callID;
+//         std::string from;
+//         std::string to;
+//         std::string requestURI;
+//         std::string toTag;
+
+//         if (toCallee)
+//         {
+//             // Caller → Callee
+//             targetIP   = session->calleeIP;
+//             callID     = session->calleeCallID;
+//             from       = session->calleeFrom;
+//             to         = session->calleeTo;
+//             requestURI = "sip:" + session->calleeUser + "@" + session->calleeIP;
+//             toTag      = session->calleetoTag;
+//         }
+//         else
+//         {
+//             // Callee → Caller   IMPORTANT FIX
+//             targetIP   = session->callerIP;
+//             callID     = session->callerCallID;
+//             from       = session->callerFrom;
+//             to         = session->callerTo;
+//             requestURI = "sip:" + session->callerUser + "@" + session->callerIP;
+//             toTag      = session->callertoTag;
+//         }
+
+//         std::string branch = generateBranch();
+
+//         std::string bye =
+//             "BYE " + requestURI + " SIP/2.0\r\n"
+//             "Via: SIP/2.0/UDP " + m_sServer_ip + ":5060;branch=" + branch + ";rport\r\n"
+//             "Max-Forwards: 70\r\n"
+//             "From: " + from + "\r\n"
+//             "To: " + to +";tag="+toTag + "\r\n"
+//             "Call-ID: " + callID + "\r\n"
+//             "CSeq: " + std::to_string(++session->CSeq) + " BYE\r\n"
+//             "Content-Length: 0\r\n\r\n";
+
+//         return bye;
+//     }
+//     catch (const std::exception &e)
+//     {
+//         m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::buildBye: " + std::string(e.what())); 
+//         return "";
+//     }
+// }
+
+std::string SIPServer::buildBye(const std::shared_ptr<CallSession>& session, bool toCallee)
 {
-    try
-    {
-        std::string targetIP;
-        std::string callID;
-        std::string from;
-        std::string to;
-        std::string requestURI;
+    std::string requestURI, fromHeader, toHeader, callID;
 
-        if (toCallee)
-        {
-            // Caller → Callee
-            targetIP   = session->calleeIP;
-            callID     = session->calleeCallID;
-            from       = session->callerFrom;
-            to         = session->calleeTo;
-            requestURI = "sip:" + session->calleeUser + "@" + session->calleeIP;
-        }
-        else
-        {
-            // Callee → Caller   IMPORTANT FIX
-            targetIP   = session->callerIP;
-            callID     = session->callerCallID;
-            from       = session->calleeFrom;
-            to         = session->callerTo;
-            requestURI = "sip:" + session->callerUser + "@" + session->callerIP;
-        }
+    if (toCallee) {
+        // We are talking to Leg B (Callee)
+        requestURI = "sip:" + session->calleeUser + "@" + session->calleeIP;
+        callID     = session->calleeCallID;
+        
+        // From: Server (using server's tag for callee)
+        // To: Callee (using callee's original tag)
+        fromHeader = session->calleeFrom; 
+        if (fromHeader.find("tag=") == std::string::npos) fromHeader += ";tag=" + session->serverTagForCallee;
+        
+        toHeader   = session->calleeTo;
+        if (toHeader.find("tag=") == std::string::npos) toHeader += ";tag=" + session->calleetoTag;
+    } 
+    else {
+        // We are talking to Leg A (Caller)
+        requestURI = "sip:" + session->callerUser + "@" + session->callerIP;
+        callID     = session->callerCallID;
 
-        std::string branch = generateBranch();
-
-        std::string bye =
-            "BYE " + requestURI + " SIP/2.0\r\n"
-            "Via: SIP/2.0/UDP " + m_sServer_ip + ":5060;branch=" + branch + ";rport\r\n"
-            "Max-Forwards: 70\r\n"
-            "From: " + from + "\r\n"
-            "To: " + to + "\r\n"
-            "Call-ID: " + callID + "\r\n"
-            "CSeq: " + std::to_string(++session->CSeq) + " BYE\r\n"
-            "Content-Length: 0\r\n\r\n";
-
-        return bye;
+        // SWAP FOR CALLER:
+        // From: Should look like the Callee to the Caller
+        fromHeader = session->callerTo; 
+        if (fromHeader.find("tag=") == std::string::npos) fromHeader += ";tag=" + session->callertoTag; 
+        
+        // To: The Caller's identity
+        toHeader   = session->callerFrom; 
     }
-    catch (const std::exception &e)
-    {
-        m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::buildBye: " + std::string(e.what())); 
-        return "";
-    }
+
+    std::string branch = generateBranch();
+    return "BYE " + requestURI + " SIP/2.0\r\n"
+           "Via: SIP/2.0/UDP " + m_sServer_ip + ":5060;branch=" + branch + ";rport\r\n"
+           "Max-Forwards: 70\r\n"
+           "From: " + fromHeader + "\r\n"
+           "To: " + toHeader + "\r\n"
+           "Call-ID: " + callID + "\r\n"
+           "CSeq: " + std::to_string(++session->CSeq) + " BYE\r\n"
+           "Content-Length: 0\r\n\r\n";
 }
 
 // ===================================================================

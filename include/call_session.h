@@ -18,6 +18,7 @@ public:
     std::string callerIP;
     std::string callersdp;
     std::string callerUser;
+    std::string callertoTag;
     uword callerPort;
 
     // ===== CALLEE SIDE =====
@@ -32,7 +33,9 @@ public:
     std::string calleeUser;
     int calleeCSeq;
 
-
+    std::string serverTagForCaller;
+    std::string serverTagForCallee;
+    
     // ===== B2BUA CONTROL =====
     std::string toTag;        // generated once
     std::string fromTag;      // optional if needed
@@ -41,7 +44,8 @@ public:
     // RTP
     int rtp_port;
 
-
+    
+    
     //  ADD THIS (VERY IMPORTANT)
     RTPSession rtp;
 
@@ -50,6 +54,8 @@ public:
 
     bool isTerminated;
 
+    int byeConfirmedCount;
+    
     CallSession();
 
     bool isCaller(const std::string& ip, uword port) const;
