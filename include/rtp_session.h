@@ -18,6 +18,8 @@ struct RTPSession {
     uint32_t caller_ip_n; // Store in network byte order
     uint32_t callee_ip_n;
 
+    bool rtpStarted;
+
     std::atomic<bool> running{true};
 };
 

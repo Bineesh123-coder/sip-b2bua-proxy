@@ -16,8 +16,8 @@ SIPServer::SIPServer()
         m_sDataPath="/opt/app/DATA";
         m_log = 1;
         m_debugLevel= 40;
-        //m_sServer_ip ="192.168.1.7";
-        m_sServer_ip ="192.168.2.237";
+        m_sServer_ip ="192.168.1.7";
+        //m_sServer_ip ="192.168.2.237";
 
     }
     catch(const std::exception &e)
