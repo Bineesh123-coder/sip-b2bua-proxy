@@ -4,6 +4,7 @@
 #include <string>
 #include "rtp_session.h"  
 #include "types.h"
+#include <memory>
 
 class CallSession
 {
@@ -44,10 +45,11 @@ public:
     // RTP
     int rtp_port;
 
-    
-    
+   
+        
     //  ADD THIS (VERY IMPORTANT)
-    RTPSession rtp;
+   // RTPSession rtp;
+   std::shared_ptr<RTPSession> rtp;
 
     // State
     std::string state;

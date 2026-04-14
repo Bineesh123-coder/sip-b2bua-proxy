@@ -14,6 +14,10 @@ struct RTPSession {
     int server_port;
     int sockfd = -1;
 
+     // In your session header
+    uint32_t caller_ip_n; // Store in network byte order
+    uint32_t callee_ip_n;
+
     std::atomic<bool> running{true};
 };
 

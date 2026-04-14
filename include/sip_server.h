@@ -95,8 +95,11 @@ class SIPServer : public Thread{
 
     void debug_testing();
 
-    void startRTPRelay(RTPSession& rtp);
-    void stopRTPRelay(RTPSession& rtp); 
+    //void startRTPRelay(RTPSession& rtp);
+    //void startRTPRelay(std::shared_ptr<RTPSession> rtp);
+    void startRTPRelay(std::shared_ptr<RTPSession> session);
+    void stopRTPRelay(std::shared_ptr<RTPSession> session);
+   //void stopRTPRelay(RTPSession& rtp); 
     void cleanupRegistrations();
 
     std::string CreateNewInviteMsg(const SIPParser& parser,

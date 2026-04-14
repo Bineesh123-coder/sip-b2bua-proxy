@@ -27,6 +27,7 @@ public:
                           const std::string& user,
                           const std::string& ip,
                           int port);
+    
 };
 
 #endif
