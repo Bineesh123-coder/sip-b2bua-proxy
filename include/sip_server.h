@@ -21,6 +21,7 @@
 #include <hiredis/hiredis.h>
 #include <sstream>
 #include <random>
+#include <iomanip>
 
 struct UserLocation
 {
@@ -108,6 +109,7 @@ class SIPServer : public Thread{
     std::string generateTag();
     std::string generateBranch();
     std::string removeAllTags(const std::string& header);
+    void call_summary(const std::shared_ptr<CallSession>& session);
     
     public:
     SIPServer();

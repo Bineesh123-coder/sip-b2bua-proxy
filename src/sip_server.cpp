@@ -16,8 +16,8 @@ SIPServer::SIPServer()
         m_sDataPath="/opt/app/DATA";
         m_log = 1;
         m_debugLevel= 40;
-        m_sServer_ip ="192.168.1.7";
-        //m_sServer_ip ="192.168.2.237";
+        //m_sServer_ip ="192.168.1.7";
+        m_sServer_ip ="192.168.2.237";
 
     }
     catch(const std::exception &e)
@@ -652,6 +652,18 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
                     stopRTPRelay(session->rtp);
                     session->state = "TERMINATED";
                     logMsg = "[STATE] TERMINATED (BYE)";
+
+                    // 1. Tell the thread to stop
+                    session->rtp->running = false;
+
+                    // 2. Force a small "flush" or check if the thread is done
+                    // If you don't use join(), at least ensure end_time is set
+                    if (session->rtp->end_time == std::chrono::steady_clock::time_point()) {
+                        session->rtp->end_time = std::chrono::steady_clock::now();
+                    }
+
+                    call_summary(session);
+
                     m_callsessionManager->removeSession(callID);
                 }
             }
@@ -1774,3 +1786,51 @@ std::string SIPServer::build200OkForBye(const SIPParser& parser)
     }
 }
 
+void SIPServer::call_summary(const std::shared_ptr<CallSession>& session)
+{
+    try {
+        if (!session || !session->rtp) {
+            m_pDailyLog->WriteLog(kGeneralError, "ERROR: Session or RTP pointer is null");
+            return;
+        }
+
+        // FIX 1: Correct subtraction for duration
+        auto duration_sec = std::chrono::duration_cast<std::chrono::seconds>(
+            session->rtp->end_time - session->rtp->start_time
+        ).count();
+
+        // Ensure duration isn't negative or weird if end_time wasn't set correctly
+        if (duration_sec < 0 || duration_sec > 36000) duration_sec = 0; 
+
+        uint32_t total_packets = session->rtp->caller_stats.packet_count + 
+                                 session->rtp->callee_stats.packet_count;
+        
+        uint32_t total_loss = session->rtp->caller_stats.lost_packets + 
+                              session->rtp->callee_stats.lost_packets;
+        
+        double avg_jitter = (session->rtp->caller_stats.jitter + 
+                             session->rtp->callee_stats.jitter) / 2.0;
+
+        std::stringstream ss;
+        ss << "\n===== CALL SUMMARY ====="
+           << "\nCall-ID      : " << session->callerCallID
+           << "\nCaller       : " << session->callerUser << " (" << session->callerIP << ")"
+           << "\nCallee       : " << session->calleeUser << " (" << session->calleeIP << ")"
+           << "\nDuration     : " << duration_sec << " seconds"
+           << "\nTotal Packets: " << total_packets 
+           << " (In: " << session->rtp->caller_stats.packet_count 
+           << ", Out: " << session->rtp->callee_stats.packet_count << ")"
+           << "\nPacket Loss  : " << total_loss 
+           << " (" << std::fixed << std::setprecision(2) 
+           << (total_packets > 0 ? (double)total_loss / (total_packets + total_loss) * 100.0 : 0.0) << "%)"
+           << "\nAvg Jitter   : " << std::fixed << std::setprecision(2) << avg_jitter << " ms"
+           << "\n------------------------------------------------";
+
+        std::string logMsg = ss.str();
+        std::cout << logMsg << std::endl;
+        m_pDailyLog->WriteLog(kDebug, logMsg);
+    }
+    catch (const std::exception &e) {
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR in call_summary: " + std::string(e.what())); 
+    }
+}

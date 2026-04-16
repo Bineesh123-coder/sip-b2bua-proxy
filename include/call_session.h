@@ -57,6 +57,8 @@ public:
     bool isTerminated;
 
     int byeConfirmedCount;
+
+    
     
     CallSession();
 

@@ -7,6 +7,7 @@
 
 void rtpRelayWorker(RTPSession &session);
 void rtpRelayWorker(std::shared_ptr<RTPSession> session);
+void update_stats(StreamStats& stats, uint8_t* buffer);
 
 int allocateRTPPort();
 
