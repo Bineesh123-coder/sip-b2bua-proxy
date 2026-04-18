@@ -112,7 +112,7 @@ class SIPServer : public Thread{
     void call_summary(const std::shared_ptr<CallSession>& session);
 
     void onCallStart(const std::shared_ptr<CallSession>& session);
-    void onCallConnected(const std::string& callId);
+    void onCallConnected(const std::shared_ptr<CallSession>& session);
     void onCallEnd(const std::shared_ptr<CallSession>& session,
                          int duration,
                          int totalPackets,

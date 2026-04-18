@@ -221,3 +221,82 @@ HGETALL DEVICE:1001
 HGET DEVICE:1001 status
 SMEMBERS USER:1001:CALLS
 SMEMBERS ACTIVE_CALLS
+
+
+HSET SIP_SERVER_SETTINGS DATADRIVE /opt/app/DATA END_RTP 50000 LOG 1 LOGGER_STATUS 40 REDIS_HOST 127.0.0.1 REDIS_PASSWORD "" REDIS_PORT 6379 REDIS_USERNAME "" SERVER_IP 192.168.1.7 SIP_PORT 5060 START_RTP 40000
+
+
+🔑 BASIC REDIS COMMAND PURPOSE
+🔍 KEYS *
+
+👉 Shows all keys in Redis
+
+✔ Use when:
+
+you want to see everything stored
+debugging your system
+🔍 TYPE DEVICE:1001
+
+👉 Tells what kind of data this key is
+
+✔ Output:
+
+hash → use HGET/HGETALL
+set → use SMEMBERS
+
+✔ Use when:
+
+you don’t know how to read a key
+🔍 HGETALL DEVICE:1001
+
+👉 Gets ALL data inside a hash
+
+✔ Use when:
+
+you want full device info
+debugging device state
+
+Example:
+
+status: IDLE
+current_call: -
+last_call: abc123
+🔍 HGET DEVICE:1001 status
+
+👉 Gets ONE field from a hash
+
+✔ Use when:
+
+you only need one value
+faster than HGETALL
+🔍 SMEMBERS USER:1001:CALLS
+
+👉 Gets all values from a set
+
+✔ Use when:
+
+you want call history of a user
+list of all call IDs
+🔍 SMEMBERS ACTIVE_CALLS
+
+👉 Shows all active (ongoing) calls
+
+✔ Use when:
+
+monitoring live calls
+debugging stuck calls
+🧠 SIMPLE MEMORY TRICK
+KEYS       → what exists?
+TYPE       → what type?
+HGETALL    → full data
+HGET       → one value
+SMEMBERS   → list items
+🎯 REAL USAGE FLOW (HOW YOU DEBUG)
+
+When something goes wrong:
+
+KEYS *                  → see all data
+TYPE DEVICE:1001        → understand structure
+HGETALL DEVICE:1001     → full device state
+SMEMBERS ACTIVE_CALLS   → check live calls
+SMEMBERS USER:1001:CALLS → check history

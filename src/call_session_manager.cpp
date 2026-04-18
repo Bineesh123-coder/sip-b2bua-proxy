@@ -24,7 +24,7 @@ void CallSessionManager::addSession(std::shared_ptr<CallSession> session)
         if (it != m_sessions.end())
         {
             logMsg ="[WARN] Session already exists: " + session->calleeCallID;
-            std::cout<<logMsg<<std::endl;
+            //std::cout<<logMsg<<std::endl;
             m_log->WriteLog(kDebug, logMsg);
              
             return;
@@ -36,7 +36,7 @@ void CallSessionManager::addSession(std::shared_ptr<CallSession> session)
 
 
         logMsg ="[INFO] Session created: " + session->calleeCallID;
-        std::cout<<logMsg<<std::endl;
+        //std::cout<<logMsg<<std::endl;
         m_log->WriteLog(kDebug, logMsg);
     }
     catch (const std::exception &e)
@@ -81,7 +81,7 @@ void CallSessionManager::removeSession(const std::string& callID)
         {
             m_sessions.erase(it);
             logMsg ="[INFO] Session removed: " + callID;
-            std::cout<<logMsg<<std::endl;
+            //std::cout<<logMsg<<std::endl;
             m_log->WriteLog(kDebug, logMsg);
         }
     }

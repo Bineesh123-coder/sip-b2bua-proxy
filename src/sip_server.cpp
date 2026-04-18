@@ -617,6 +617,9 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
                 
                 session->state = "RINGING";
                 logMsg = "[STATE] RINGING";
+
+                //std::cout << logMsg << std::endl;
+                m_pDailyLog->WriteLog(kDebug, logMsg);
             }
             else if (statusLine.find("200") != std::string::npos &&
                      cseqm.find("INVITE") != std::string::npos)
@@ -632,7 +635,10 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
                 session->state = "CONNECTED";
                 logMsg = "[STATE] CONNECTED";
 
-                onCallConnected(session->callerCallID);
+                //std::cout << logMsg << std::endl;
+                m_pDailyLog->WriteLog(kDebug, logMsg);
+
+                onCallConnected(session);
 
                 std::string calleeSdp = SDPParser::extractSDP(sipMsg);
                 SDPInfo calleeInfo = SDPParser::parse(calleeSdp);
@@ -658,11 +664,7 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
             }
             else if (statusLine.find("200") != std::string::npos &&
                      cseqm.find("BYE") != std::string::npos)
-            {
-                session->state = "TERMINATED";
-                //stopRTPRelay(session->rtp);   
-                //m_callsessionManager->removeSession(callID);
-                logMsg = "[STATE] TERMINATED (BYE)";
+            {                
 
                 session->byeConfirmedCount++;
 
@@ -671,6 +673,9 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
                     stopRTPRelay(session->rtp);
                     session->state = "TERMINATED";
                     logMsg = "[STATE] TERMINATED (BYE)";
+
+                    //std::cout << logMsg << std::endl;
+                    m_pDailyLog->WriteLog(kDebug, logMsg);
 
                     // 1. Tell the thread to stop
                     session->rtp->running = false;
@@ -691,16 +696,53 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
                 session->state = "TERMINATED";
                 m_callsessionManager->removeSession(callID);
                 logMsg = "[STATE] TERMINATED (487)";
+
+                //std::cout << logMsg << std::endl;
+                m_pDailyLog->WriteLog(kDebug, logMsg);
+                
+            }
+            else if (statusLine.find("486") != std::string::npos)
+            {   
+                // session->byeConfirmedCount++;
+                // session->state = "TERMINATED";
+                // m_callsessionManager->removeSession(callID);
+                // logMsg = "[STATE] TERMINATED (486)";
+
+                session->byeConfirmedCount += 2;
+
+                if (session->byeConfirmedCount == 2)
+                {   
+                    stopRTPRelay(session->rtp);
+                    session->state = "TERMINATED";
+                    logMsg = "[STATE] TERMINATED (486)";
+
+                    //std::cout << logMsg << std::endl;
+                    m_pDailyLog->WriteLog(kDebug, logMsg);
+
+                    // 1. Tell the thread to stop
+                    session->rtp->running = false;
+
+                    // 2. Force a small "flush" or check if the thread is done
+                    // If you don't use join(), at least ensure end_time is set
+                    if (session->rtp->end_time == std::chrono::steady_clock::time_point()) {
+                        session->rtp->end_time = std::chrono::steady_clock::now();
+                    }
+
+                    call_summary(session);
+
+                    m_callsessionManager->removeSession(callID);
+                }
             }
             else if (statusLine.find("200") != std::string::npos)
             {
                 // other 200 OK (ACK, etc.)
                 session->state = "CONNECTED";
                 logMsg = "[STATE] CONNECTED";
+
+                //std::cout << logMsg << std::endl;
+                m_pDailyLog->WriteLog(kDebug, logMsg);
             }
 
-            //std::cout << logMsg << std::endl;
-            m_pDailyLog->WriteLog(kDebug, logMsg);
             return; 
         }
 
@@ -1908,14 +1950,25 @@ void SIPServer::onCallStart(const std::shared_ptr<CallSession>& session) {
     }
 }
 
-void SIPServer::onCallConnected(const std::string& callId) {
+void SIPServer::onCallConnected(const std::shared_ptr<CallSession>& session) {
    
     try{
 
         redisCommand(m_pContext,
-        "HSET CALL:%s state CONNECTED",
-        callId.c_str()
+        "HSET CALL:%s state CONNECTED",session->callerCallID.c_str());
+
+        redisCommand(m_pContext,
+            "HSET DEVICE:%s status CONNECTED current_call %s",
+            session->calleeUser.c_str(),
+            session->callerCallID.c_str());
+        
+        // 4. Update devices → IDLE
+        redisCommand(m_pContext,
+            "HSET DEVICE:%s status CONNECTED current_call  %s",
+            session->callerUser.c_str(),
+            session->callerCallID.c_str()
         );
+        
     }
     catch (const std::exception &e) {
         m_pDailyLog->WriteLog(kGeneralError, "ERROR: onCallConnected: " + std::string(e.what())); 
@@ -1932,7 +1985,7 @@ void SIPServer::onCallEnd(const std::shared_ptr<CallSession>& session,
     try{
 
         std::string callId = session->callerCallID;
-        
+
         // 1. Store final CDR
         redisCommand(m_pContext,
             "HSET CDR:%s caller %s callee %s duration %d packets %d loss %d jitter_avg %f",
