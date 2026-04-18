@@ -13,12 +13,7 @@ SIPServer::SIPServer()
         m_callsessionManager = nullptr;
         m_envReader = new EnvReader(); // Create a new environment reader instance
         m_pContext = nullptr;
-        //m_serverIP ="192.168.2.225";
-        //m_sDataPath="/opt/app/DATA";
-        //m_log = 1;
-        //m_debugLevel= 40;
-        //m_sServer_ip ="192.168.1.7";
-        //m_sServer_ip ="192.168.2.237";
+       
 
     }
     catch(const std::exception &e)
@@ -1360,54 +1355,6 @@ void SIPServer::debug_testing()
     }
 }
 
-/* Start RTPRelay */ 
-// void SIPServer::startRTPRelay(RTPSession &session) {
-//     try{
-
-//         std::thread(rtpRelayWorker, std::ref(session)).detach();
-//         //std::thread(rtpRelayWorker, std::ref(session), m_pDailyLog).detach();
-//         m_pDailyLog->WriteLog(kGeneralError, ":startRTPRelay: "); 
-//     }
-//     catch (const std::exception &e)
-//     {
-//         m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::startRTPRelay: " + std::string(e.what())); 
-//     }
-    
-// }
-// void SIPServer::startRTPRelay(std::shared_ptr<RTPSession> session) {
-//     try {
-//         // Capture the shared_ptr by value to increment the reference count
-//         std::thread([session]() {
-//             rtpRelayWorker(session); 
-//         }).detach();
-        
-//         m_pDailyLog->WriteLog(kGeneralError, ":startRTPRelay: Thread Launched"); 
-//     }
-//     catch (const std::exception &e) {
-//         m_pDailyLog->WriteLog(kGeneralError, "ERROR: " + std::string(e.what())); 
-//     }
-// }
-// /* Stop RTPRelay */ 
-// void SIPServer::stopRTPRelay(RTPSession& rtp)
-// {
-    
-//     try{
-
-//         rtp.running = false;
-
-//         if (rtp.sockfd > 0)
-//         {
-//             close(rtp.sockfd);   //  force unblock recvfrom
-//             //std::cout << "[RTP] Stopped\n";
-//         }
-//     }
-//     catch (const std::exception &e)
-//     {
-//        m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::StopRTPRelay: " + std::string(e.what())); 
-//     }
-
-// } 
-
 void SIPServer::startRTPRelay(std::shared_ptr<RTPSession> rtp)
 {
     try
@@ -1561,75 +1508,6 @@ std::string SIPServer::CreateNewInviteMsg(const SIPParser& parser,
     
 }
 
-// std::string SIPServer::CreateNewInviteMsg(const SIPParser& parser,
-//                                            const std::shared_ptr<CallSession>& session)
-// {   
-//     try {
-//         // 1. Setup Identities for Leg B
-//         std::string newCallID = session->calleeCallID;
-
-//         // Strip tags from original From and add our own Server-generated tag for the Callee side
-//         std::string from = parser.getFrom();
-//         from = removeAllTags(from); 
-//         session->calleefromTag = generateTag(); 
-//         from += ";tag=" + session->calleefromTag;
-
-//         // The 'To' should point to the registered callee destination
-//         std::string to = "<sip:" + parser.getToUser() + "@" + session->calleeIP + ">";
-
-//         session->calleeFrom = from;
-//         session->calleeTo   = to;
-//         session->calleeCSeq = 1;
-//         session->CSeq       = 1;
-
-//         // 2. Build Headers
-//         std::string requestLine = "INVITE sip:" + parser.getToUser() + "@" + session->calleeIP + " SIP/2.0\r\n";
-//         session->calleeBranch   = generateBranch();                     
-        
-//         std::string via = "Via: SIP/2.0/UDP " + m_sServer_ip + ":5060;branch=" + session->calleeBranch + ";rport\r\n";
-//         std::string contact = "Contact: <sip:" + m_sServer_ip + ":5060>\r\n";
-//         std::string recordRoute = "Record-Route: <sip:" + m_sServer_ip + ":5060;lr>\r\n";
-
-//         std::string headers =
-//             via +
-//             "From: " + from + "\r\n" +
-//             "To: " + to + "\r\n" +
-//             "Call-ID: " + newCallID + "\r\n" +
-//             "CSeq: 1 INVITE\r\n" +
-//             "Max-Forwards: 70\r\n" +
-//             contact +
-//             recordRoute +
-//             "Content-Type: application/sdp\r\n";
-
-//         // 3. Build the Relay SDP
-//         // This tells the Callee: "Send your audio to my server_port"
-//         std::string newSDP =
-//             "v=0\r\n"
-//             "o=proxy 123456 123456 IN IP4 " + m_sServer_ip + "\r\n"
-//             "s=SIP Call\r\n"
-//             "c=IN IP4 " + m_sServer_ip + "\r\n"
-//             "t=0 0\r\n"
-//             "m=audio " + std::to_string(session->rtp.server_port) + " RTP/AVP 0 8 101\r\n"
-//             "a=rtpmap:0 PCMU/8000\r\n"
-//             "a=rtpmap:8 PCMA/8000\r\n"
-//             "a=rtpmap:101 telephone-event/8000\r\n"
-//             "a=fmtp:101 0-16\r\n"
-//             "a=sendrecv\r\n";
-
-//         headers += "Content-Length: " + std::to_string(newSDP.length()) + "\r\n\r\n";
-
-//         // IMPORTANT: DO NOT do "session->callersdp = newSDP;"
-//         // We need session->callersdp to remain the REAL IP of the caller 
-//         // so the RTP worker knows where to forward the packets!
-
-//         return requestLine + headers + newSDP;
-
-//     } catch (const std::exception& e) {
-//         m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::CreateNewInviteMsg: " + std::string(e.what())); 
-//         return "";
-//     }
-// }
-
 /* generate CallID*/
 std::string SIPServer::generateCallID()
 {   
@@ -1739,61 +1617,6 @@ std::string SIPServer::removeAllTags(const std::string& header)
         return "";
     }
 }
-
-// /* build BYE */
-// std::string SIPServer::buildBye(const std::shared_ptr<CallSession>& session,
-//                                 bool toCallee)
-// {
-//     try
-//     {
-//         std::string targetIP;
-//         std::string callID;
-//         std::string from;
-//         std::string to;
-//         std::string requestURI;
-//         std::string toTag;
-
-//         if (toCallee)
-//         {
-//             // Caller → Callee
-//             targetIP   = session->calleeIP;
-//             callID     = session->calleeCallID;
-//             from       = session->calleeFrom;
-//             to         = session->calleeTo;
-//             requestURI = "sip:" + session->calleeUser + "@" + session->calleeIP;
-//             toTag      = session->calleetoTag;
-//         }
-//         else
-//         {
-//             // Callee → Caller   IMPORTANT FIX
-//             targetIP   = session->callerIP;
-//             callID     = session->callerCallID;
-//             from       = session->callerFrom;
-//             to         = session->callerTo;
-//             requestURI = "sip:" + session->callerUser + "@" + session->callerIP;
-//             toTag      = session->callertoTag;
-//         }
-
-//         std::string branch = generateBranch();
-
-//         std::string bye =
-//             "BYE " + requestURI + " SIP/2.0\r\n"
-//             "Via: SIP/2.0/UDP " + m_sServer_ip + ":5060;branch=" + branch + ";rport\r\n"
-//             "Max-Forwards: 70\r\n"
-//             "From: " + from + "\r\n"
-//             "To: " + to +";tag="+toTag + "\r\n"
-//             "Call-ID: " + callID + "\r\n"
-//             "CSeq: " + std::to_string(++session->CSeq) + " BYE\r\n"
-//             "Content-Length: 0\r\n\r\n";
-
-//         return bye;
-//     }
-//     catch (const std::exception &e)
-//     {
-//         m_pDailyLog->WriteLog(kGeneralError, "ERROR: SIPServer::buildBye: " + std::string(e.what())); 
-//         return "";
-//     }
-// }
 
 std::string SIPServer::buildBye(const std::shared_ptr<CallSession>& session, bool toCallee)
 {
