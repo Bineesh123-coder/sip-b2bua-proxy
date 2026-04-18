@@ -13,11 +13,11 @@ SIPServer::SIPServer()
         m_callsessionManager = nullptr;
         m_envReader = new EnvReader(); // Create a new environment reader instance
         //m_serverIP ="192.168.2.225";
-        m_sDataPath="/opt/app/DATA";
-        m_log = 1;
-        m_debugLevel= 40;
+        //m_sDataPath="/opt/app/DATA";
+        //m_log = 1;
+        //m_debugLevel= 40;
         //m_sServer_ip ="192.168.1.7";
-        m_sServer_ip ="192.168.2.237";
+        //m_sServer_ip ="192.168.2.237";
 
     }
     catch(const std::exception &e)
@@ -73,7 +73,6 @@ void SIPServer::DeleteMemory()
     }
     catch(const std::exception &e)
     {
-        std::cout<<"ERROR:DeleteMemmory()\n";
         m_pUDPSocket = nullptr;
         m_callsessionManager = nullptr;
         m_envReader = nullptr;
@@ -86,7 +85,6 @@ void SIPServer::run()
     try
     {
         snprintf(m_logString, 500, "SIPServer::Thread::run()");
-        std::cout<<m_logString;
         m_pDailyLog->WriteLog(kDebug, m_logString);
 
         while (!m_bStopped)
@@ -139,13 +137,12 @@ int  SIPServer::Start()
             m_pDailyLog = new Clogger(m_sDataPath, m_debugLevel, m_log, "Sip_Server");
             printf("CREATING LOG FILE\n");
             m_pDailyLog->CreateLog();
-            // Read environment settings for the IP recorder
-            // std::cout<<"hai"<<std::endl;
-            // if (ReadSipServerSettingsENV() == kFailure)
-            // {
-            //     m_pDailyLog->WriteLog(kGeneralError, "SIPServer::start():: ERROR::ReadSipServerSettingsENV Failed");
-            //     return kFailure;
-            // }
+            //Read environment settings for the sip server
+            if (ReadSipServerSettingsENV() == kFailure)
+            {
+                m_pDailyLog->WriteLog(kGeneralError, "SIPServer::start():: ERROR::ReadSipServerSettingsENV Failed");
+                return kFailure;
+            }
             //m_pUDPSocket = new UDPSocket(m_nsip_port, false,"0.0.0.0");
             m_callsessionManager = new CallSessionManager(m_pDailyLog);
             
@@ -267,28 +264,28 @@ int SIPServer::Connect_to_Redis()
             case REDIS_REPLY_STRING:
                 if (reply->str)
                 {
-                    std::cout << "SIPServer::PING: " << reply->str << std::endl;
+                    //std::cout << "SIPServer::PING: " << reply->str << std::endl;
                     m_pDailyLog->WriteLog(kGeneralError, "SIPServer::Redis PING: " + std::string(reply->str));
                 }
                 else
                 {
-                    std::cerr << "SIPServer::PING: Reply is a string but empty." << std::endl;
+                    //td::cerr << "SIPServer::PING: Reply is a string but empty." << std::endl;
                     m_pDailyLog->WriteLog(kGeneralError, "SIPServer::Redis PING: Reply is a string but empty.");
                 }
                 break;
 
             case REDIS_REPLY_STATUS:
-                std::cout << "SIPServer::PING Status: " << reply->str << std::endl;
+                //std::cout << "SIPServer::PING Status: " << reply->str << std::endl;
                 m_pDailyLog->WriteLog(kGeneralError, "SIPServer::Redis PING Status: " + std::string(reply->str ? reply->str : "null"));
                 break;
 
             case REDIS_REPLY_INTEGER:
-                std::cout << "SIPServer::PING Integer Reply: " << reply->integer << std::endl;
+                //std::cout << "SIPServer::PING Integer Reply: " << reply->integer << std::endl;
                 m_pDailyLog->WriteLog(kGeneralError, "SIPServer::Redis PING Integer Reply: " + std::to_string(reply->integer));
                 break;
 
             case REDIS_REPLY_NIL:
-                std::cout << "SIPServer::PING Reply is NIL." << std::endl;
+                //std::cout << "SIPServer::PING Reply is NIL." << std::endl;
                 m_pDailyLog->WriteLog(kGeneralError, "SIPServer::Redis PING Reply is NIL.");
                 break;
 
@@ -298,12 +295,12 @@ int SIPServer::Connect_to_Redis()
                 break;
 
             case REDIS_REPLY_ARRAY:
-                std::cout << "SIPServer::PING Array Reply:" << std::endl;
+                //std::cout << "SIPServer::PING Array Reply:" << std::endl;
                 for (size_t i = 0; i < reply->elements; ++i)
                 {
                     if (reply->element[i] && reply->element[i]->str)
                     {
-                        std::cout << "SIPServer::  Element[" << i << "]: " << reply->element[i]->str << std::endl;
+                        //std::cout << "SIPServer::  Element[" << i << "]: " << reply->element[i]->str << std::endl;
                         m_pDailyLog->WriteLog(kGeneralError, "SIPServer::PING Array Element[" + std::to_string(i) + "]: " + std::string(reply->element[i]->str));
                     }
                 }
@@ -476,7 +473,7 @@ int SIPServer::ReadSipServerSettingsRedis()
             {
                 std::string key = reply->element[i]->str;
                 std::string value = reply->element[i + 1]->str;
-                std::cout << key << ": " << value << std::endl;
+                //std::cout << key << ": " << value << std::endl;
                 m_pDailyLog->WriteLog(kGeneralError, "SIPServerSettings::processMessage - " + key + ": " + value);
                 printf(("SIPServerSettings::processMessage - " + key + ": " + value + "\n").c_str());
 
@@ -561,7 +558,7 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
         if (firstLine.find("SIP/2.0") == 0)
         {   
             logMsg = "response sip msg\n"+sipMsg;
-            std::cout << logMsg << std::endl;
+            //std::cout << logMsg << std::endl;
             m_pDailyLog->WriteLog(kDebug, logMsg);
             
            // When a response comes in
@@ -577,7 +574,7 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
             if (!session)
             {
                 logMsg = "[WARN] Session not found for response ";
-                std::cout << logMsg << std::endl;
+                //std::cout << logMsg << std::endl;
                 m_pDailyLog->WriteLog(kDebug, logMsg);
                 return;
             }
@@ -595,7 +592,7 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
                 m_pUDPSocket->send(ringing.c_str(), ringing.length(), inet_addr(session->callerIP.c_str()),session->callerPort);
 
                 logMsg = "Sent ringing msg to caller  " + session->callerIP + ":" + std::to_string(session->callerPort)+"\n"+ringing;
-                std::cout << logMsg << std::endl;
+                //std::cout << logMsg << std::endl;
                 m_pDailyLog->WriteLog(kDebug, logMsg);
                 
                 session->state = "RINGING";
@@ -609,7 +606,7 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
                 m_pUDPSocket->send(ok200msg.c_str(), ok200msg.length(), inet_addr(session->callerIP.c_str()), session->callerPort);
 
                 logMsg = "Sent 200ok msg to caller  " + session->callerIP + ":" + std::to_string(session->callerPort)+"\n"+ok200msg;
-                std::cout << logMsg << std::endl;
+                //std::cout << logMsg << std::endl;
                 m_pDailyLog->WriteLog(kDebug, logMsg);
 
                 session->state = "CONNECTED";
@@ -624,7 +621,7 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
                 session->rtp->callee_port = calleeInfo.port;
 
                 logMsg = "rtp callee ip " + session->rtp->callee_ip + " port " + std::to_string(session->rtp->callee_port)+"\n";
-                std::cout << logMsg << std::endl;
+                //std::cout << logMsg << std::endl;
                 m_pDailyLog->WriteLog(kDebug, logMsg);
 
                 session->rtp->caller_ip_n = inet_addr(session->rtp->caller_ip.c_str());
@@ -680,7 +677,7 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
                 logMsg = "[STATE] CONNECTED";
             }
 
-            std::cout << logMsg << std::endl;
+            //std::cout << logMsg << std::endl;
             m_pDailyLog->WriteLog(kDebug, logMsg);
             return; 
         }
@@ -691,7 +688,7 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
         if (method == "INVITE")
         {   
             logMsg = "INVITE msg : " + sipMsg;
-            std::cout << logMsg << std::endl;
+            //std::cout << logMsg << std::endl;
             m_pDailyLog->WriteLog(kDebug, logMsg);
             processInviteMessage(parser, sipMsg, addr_ip, port);
         }
@@ -725,45 +722,58 @@ void SIPServer::processRegisterMessage(const SIPParser& parser,
                                        const std::string& addr_ip,
                                        uword port)
 {   
-    try{
-
+    try {
         std::string username = parser.getFromUser();
         std::string callID   = parser.getCallID();
-        std::string via      = parser.getVia();
-        std::string from     = parser.getFrom();
-        std::string to       = parser.getTo();
-        std::string cseq     = parser.getCSeq();
-
-        int expires = 3600;
+        
+        // 1. Determine Expiry
+        int expires = 3600; 
         std::string expHeader = parser.getHeader("Expires");
-        if (!expHeader.empty())
-            expires = std::stoi(expHeader);
+        if (!expHeader.empty()) expires = std::stoi(expHeader);
 
+        // 2. Check for State Change (Avoid Log Spam)
+        auto it = m_registrationDB.find(username);
+        bool isNewOrChanged = (it == m_registrationDB.end() || 
+                               it->second.ip != addr_ip || 
+                               it->second.port != port);
+
+        // Update local DB
         m_registrationDB[username] = { addr_ip, port, time(nullptr) + expires };
 
-        logMsg = "[REGISTER] User: " + username + " IP: " + addr_ip + " Port: " + std::to_string(port);
-        std::cout << logMsg << std::endl;
-        m_pDailyLog->WriteLog(kDebug, logMsg);
+        // 3. Smart Logging
+        if (isNewOrChanged) {
+            logMsg = "[REGISTER] New/Updated User: " + username + " -> " + addr_ip + ":" + std::to_string(port);
+            m_pDailyLog->WriteLog(kDebug, logMsg);
+        }
 
+        // 4. Persistence: Update Redis
+        // This allows other tools or a dashboard to see active registrations
+        if (m_pContext) {
+            std::string redisKey = "REG:" + username;
+            std::string redisVal = addr_ip + ":" + std::to_string(port);
+            // Set with same expiry as SIP header
+            freeReplyObject(redisCommand(m_pContext, "SET %s %s EX %d", 
+                            redisKey.c_str(), redisVal.c_str(), expires));
+        }
+
+        // 5. Send 200 OK Response
         std::string response =
             "SIP/2.0 200 OK\r\n"
-            "Via: " + via + "\r\n"
-            "From: " + from + "\r\n"
-            "To: " + to + ";tag=server123\r\n"
+            "Via: " + parser.getVia() + "\r\n"
+            "From: " + parser.getFrom() + "\r\n"
+            "To: " + parser.getTo() + ";tag=" + m_sServer_ip + "\r\n" // Use Server IP as tag
             "Call-ID: " + callID + "\r\n"
-            "CSeq: " + cseq + "\r\n"
+            "CSeq: " + parser.getCSeq() + "\r\n"
             "Contact: <sip:" + username + "@" + addr_ip + ":" + std::to_string(port) + ">\r\n"
-            "Expires: 3600\r\n"
+            "Expires: " + std::to_string(expires) + "\r\n"
             "Content-Length: 0\r\n\r\n";
 
         m_pUDPSocket->send(response.c_str(), response.length(),
             inet_addr(addr_ip.c_str()), port);
     }
-    catch (const std::exception& e)
-    {
+    catch (const std::exception& e) {
         m_pDailyLog->WriteLog(kGeneralError, "ERROR:SIPServer::processRegisterMessage: " + std::string(e.what()));
     }
-    
 }
 
 // ===================================================================
@@ -777,14 +787,14 @@ void SIPServer::processInviteMessage(const SIPParser& parser,
     try
     {
         logMsg = "INVITE received from " + ip + ":" + std::to_string(port);
-        std::cout << logMsg << std::endl;
+        ////std::cout << logMsg << std::endl;
         m_pDailyLog->WriteLog(kDebug, logMsg);
 
         std::string callID = parser.getCallID();
         if (m_callsessionManager->getSession(callID))
         {
             logMsg = "[INFO] Duplicate INVITE ignored";
-            std::cout << logMsg << std::endl;
+            //std::cout << logMsg << std::endl;
             return;
         }
 
@@ -793,7 +803,7 @@ void SIPServer::processInviteMessage(const SIPParser& parser,
         auto it = m_registrationDB.find(callee);
         if (it == m_registrationDB.end())
         {
-            std::cout << "[ERROR] Callee not registered: " << callee << std::endl;
+            //std::cout << "[ERROR] Callee not registered: " << callee << std::endl;
             std::string response = "SIP/2.0 404 Not Found\r\nContent-Length: 0\r\n\r\n";
             m_pUDPSocket->send(response.c_str(), response.length(), inet_addr(ip.c_str()), port);
             return;
@@ -832,7 +842,7 @@ void SIPServer::processInviteMessage(const SIPParser& parser,
         m_pUDPSocket->send(trying.c_str(), trying.length(), inet_addr(ip.c_str()), port);
 
         logMsg = "Sent trying msg to caller  " + ip + ":" + std::to_string(port)+"\n"+trying;
-        std::cout << logMsg << std::endl;
+        //std::cout << logMsg << std::endl;
         m_pDailyLog->WriteLog(kDebug, logMsg);
 
         
@@ -847,7 +857,7 @@ void SIPServer::processInviteMessage(const SIPParser& parser,
         session->rtp->caller_port = caller.port;
 
         logMsg = "rtp caller ip " + session->rtp->caller_ip + " port " + std::to_string(session->rtp->caller_port)+"\n";
-        std::cout << logMsg << std::endl;
+        //std::cout << logMsg << std::endl;
         m_pDailyLog->WriteLog(kDebug, logMsg);
 
         if (session->rtp->server_port == 0)
@@ -865,11 +875,11 @@ void SIPServer::processInviteMessage(const SIPParser& parser,
                            session->calleePort);
 
         logMsg = "NEW INVITE:\n" + newInvite;
-        std::cout << logMsg << std::endl;
+        //std::cout << logMsg << std::endl;
         m_pDailyLog->WriteLog(kDebug, logMsg);
 
         logMsg = "[ROUTING] Sending NEW INVITE to " + session->calleeIP + " " + std::to_string(session->calleePort);
-        std::cout << logMsg << std::endl;
+        //std::cout << logMsg << std::endl;
         m_pDailyLog->WriteLog(kDebug, logMsg);
        
     }
@@ -890,7 +900,7 @@ void SIPServer::processAckMessage(const SIPParser& parser,
     try
     {   
         logMsg = "recevied ACK "+ addr_ip + ":" + std::to_string(port)+"\n"+sipMsg;
-        std::cout << logMsg << std::endl;
+        //std::cout << logMsg << std::endl;
         m_pDailyLog->WriteLog(kDebug, logMsg);
 
         std::string callID = parser.getCallID();
@@ -905,7 +915,7 @@ void SIPServer::processAckMessage(const SIPParser& parser,
                         session->calleePort);
          
         logMsg = "Sent ACK to callee "+ session->calleeIP + ":" + std::to_string(session->calleePort)+"\n"+ack;
-        std::cout << logMsg << std::endl;
+        //std::cout << logMsg << std::endl;
         m_pDailyLog->WriteLog(kDebug, logMsg);
 
     }
@@ -925,7 +935,7 @@ void SIPServer::processByeMessage(const SIPParser& parser,
     try
     {   
         logMsg = "recevied BYE "+ addr_ip + ":" + std::to_string(port)+"\n"+sipMsg;
-        std::cout << logMsg << std::endl;
+        //std::cout << logMsg << std::endl;
         m_pDailyLog->WriteLog(kDebug, logMsg);
 
        std::string callID = parser.getCallID();
@@ -943,7 +953,7 @@ void SIPServer::processByeMessage(const SIPParser& parser,
 
         if (!session)
         {
-            std::cout << "BYE: session not found\n";
+            //std::cout << "BYE: session not found\n";
             return;
         }
 
@@ -954,7 +964,7 @@ void SIPServer::processByeMessage(const SIPParser& parser,
                         inet_addr(addr_ip.c_str()), port);
 
         logMsg = "Send 200 ok bye msg  "+ addr_ip + ":" + std::to_string(port)+"\n"+ok;
-        std::cout << logMsg << std::endl;
+        //std::cout << logMsg << std::endl;
         m_pDailyLog->WriteLog(kDebug, logMsg);
 
         if(!session->isTerminated)
@@ -969,7 +979,7 @@ void SIPServer::processByeMessage(const SIPParser& parser,
                             inet_addr(targetIP.c_str()), targetPort);
 
             logMsg = "Send  BYE msg  "+ targetIP + ":" + std::to_string(targetPort)+"\n"+bye;
-            std::cout << logMsg << std::endl;
+            //std::cout << logMsg << std::endl;
             m_pDailyLog->WriteLog(kDebug, logMsg);
 
             session->isTerminated = true;
@@ -1000,13 +1010,13 @@ void SIPServer::processCancelMessage(const SIPParser& parser,
         {
             m_pUDPSocket->send(sipMsg.c_str(), sipMsg.length(),
                 inet_addr(session->calleeIP.c_str()), session->calleePort);
-            std::cout << "[CANCEL] Caller → Callee\n";
+            //std::cout << "[CANCEL] Caller → Callee\n";
         }
         else
         {
             m_pUDPSocket->send(sipMsg.c_str(), sipMsg.length(),
                 inet_addr(session->callerIP.c_str()), session->callerPort);
-            std::cout << "[CANCEL] Callee → Caller\n";
+            //std::cout << "[CANCEL] Callee → Caller\n";
         }
 
         session->state = "TERMINATED";
@@ -1322,7 +1332,7 @@ void SIPServer::debug_testing()
 //         if (rtp.sockfd > 0)
 //         {
 //             close(rtp.sockfd);   //  force unblock recvfrom
-//             std::cout << "[RTP] Stopped\n";
+//             //std::cout << "[RTP] Stopped\n";
 //         }
 //     }
 //     catch (const std::exception &e)
@@ -1363,7 +1373,7 @@ void SIPServer::stopRTPRelay(std::shared_ptr<RTPSession> rtp)
             rtp->sockfd = -1;
         }
 
-        std::cout << "[RTP] Relay stopped\n";
+        //std::cout << "[RTP] Relay stopped\n";
     }
     catch (const std::exception &e)
     {
@@ -1383,7 +1393,7 @@ void SIPServer::cleanupRegistrations()
         {
             if (now > it->second.expiry)
             {
-                std::cout << "[REGISTER] Expired: " << it->first << std::endl;
+                //std::cout << "[REGISTER] Expired: " << it->first << std::endl;
                 it = m_registrationDB.erase(it);
             }
             else
@@ -1827,7 +1837,6 @@ void SIPServer::call_summary(const std::shared_ptr<CallSession>& session)
            << "\n------------------------------------------------";
 
         std::string logMsg = ss.str();
-        std::cout << logMsg << std::endl;
         m_pDailyLog->WriteLog(kDebug, logMsg);
     }
     catch (const std::exception &e) {
