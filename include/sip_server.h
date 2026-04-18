@@ -110,6 +110,14 @@ class SIPServer : public Thread{
     std::string generateBranch();
     std::string removeAllTags(const std::string& header);
     void call_summary(const std::shared_ptr<CallSession>& session);
+
+    void onCallStart(const std::shared_ptr<CallSession>& session);
+    void onCallConnected(const std::string& callId);
+    void onCallEnd(const std::shared_ptr<CallSession>& session,
+                         int duration,
+                         int totalPackets,
+                         int loss,
+                         double avgJitter);
     
     public:
     SIPServer();

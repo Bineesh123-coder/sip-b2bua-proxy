@@ -183,3 +183,41 @@ Proxy → INVITE → 1001
 1004 → ACK → Proxy → 1001
 
  CALL ESTABLISHED
+
+
+✅ Correct commands (use these)
+🔍 1. See ALL keys (you already did)
+KEYS *
+🔍 2. Check full data of a key (IMPORTANT)
+For HASH (like DEVICE, CDR, CALL)
+HGETALL DEVICE:1001
+HGETALL CDR:tdSDu_DQl81QfRTjUT5gPQ..
+
+👉 This shows everything inside
+
+🔍 3. Get specific field
+HGET DEVICE:1001 status
+HGET DEVICE:1001 current_call
+🔍 4. Check if key exists
+EXISTS DEVICE:1001
+🔍 5. Check key type (VERY USEFUL)
+TYPE DEVICE:1001
+
+Output:
+
+hash
+🔍 6. Check user call history
+SMEMBERS USER:1001:CALLS
+🔍 7. Check active calls
+SMEMBERS ACTIVE_CALLS
+🔍 8. Check all device keys
+KEYS DEVICE:*
+🔍 9. Check registration (your old structure)
+HGETALL REG:1001
+
+ KEYS *
+TYPE DEVICE:1001
+HGETALL DEVICE:1001
+HGET DEVICE:1001 status
+SMEMBERS USER:1001:CALLS
+SMEMBERS ACTIVE_CALLS

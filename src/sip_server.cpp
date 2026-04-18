@@ -632,6 +632,8 @@ void SIPServer::processSipMessage(const std::string& sipMsg,
                 session->state = "CONNECTED";
                 logMsg = "[STATE] CONNECTED";
 
+                onCallConnected(session->callerCallID);
+
                 std::string calleeSdp = SDPParser::extractSDP(sipMsg);
                 SDPInfo calleeInfo = SDPParser::parse(calleeSdp);
 
@@ -864,6 +866,8 @@ void SIPServer::processInviteMessage(const SIPParser& parser,
         logMsg = "Sent trying msg to caller  " + ip + ":" + std::to_string(port)+"\n"+trying;
         //std::cout << logMsg << std::endl;
         m_pDailyLog->WriteLog(kDebug, logMsg);
+
+        onCallStart(session);
 
         
 
@@ -1858,8 +1862,122 @@ void SIPServer::call_summary(const std::shared_ptr<CallSession>& session)
 
         std::string logMsg = ss.str();
         m_pDailyLog->WriteLog(kDebug, logMsg);
+
+        onCallEnd(session,duration_sec,total_packets,total_loss,avg_jitter);
     }
     catch (const std::exception &e) {
         m_pDailyLog->WriteLog(kGeneralError, "ERROR in call_summary: " + std::string(e.what())); 
+    }
+}
+
+void SIPServer::onCallStart(const std::shared_ptr<CallSession>& session) {
+    
+    try{
+
+        std::string callId = session->callerCallID;
+
+        // 1. Add to ACTIVE_CALLS
+        redisCommand(m_pContext, "SADD ACTIVE_CALLS %s", callId.c_str());
+
+        // 2. Create CALL:<id>
+        redisCommand(m_pContext,
+            "HSET CALL:%s caller %s callee %s state %s start_time %ld jitter 0 packets 0",
+            callId.c_str(),
+            session->callerUser.c_str(),
+            session->calleeUser.c_str(),
+            "INIT",
+            time(nullptr)
+        );
+
+        // 3. Update DEVICE (caller)
+        redisCommand(m_pContext,
+            "HSET DEVICE:%s status BUSY current_call %s",
+            session->callerUser.c_str(),
+            callId.c_str()
+        );
+
+        // 4. Update DEVICE (callee)
+        redisCommand(m_pContext,
+            "HSET DEVICE:%s status RINGING current_call %s",
+            session->calleeUser.c_str(),
+            callId.c_str()
+        );
+    }
+    catch (const std::exception &e) {
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR: onCallStart: " + std::string(e.what())); 
+    }
+}
+
+void SIPServer::onCallConnected(const std::string& callId) {
+   
+    try{
+
+        redisCommand(m_pContext,
+        "HSET CALL:%s state CONNECTED",
+        callId.c_str()
+        );
+    }
+    catch (const std::exception &e) {
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR: onCallConnected: " + std::string(e.what())); 
+    }
+}
+
+void SIPServer::onCallEnd(const std::shared_ptr<CallSession>& session,
+                         int duration,
+                         int totalPackets,
+                         int loss,
+                         double avgJitter) {
+
+
+    try{
+
+        std::string callId = session->callerCallID;
+        
+        // 1. Store final CDR
+        redisCommand(m_pContext,
+            "HSET CDR:%s caller %s callee %s duration %d packets %d loss %d jitter_avg %f",
+            callId.c_str(),
+            session->callerUser.c_str(),
+            session->calleeUser.c_str(),
+            duration,
+            totalPackets,
+            loss,
+            avgJitter
+        );
+
+        // 2. Remove live call
+        redisCommand(m_pContext, "DEL CALL:%s", callId.c_str());
+
+        // 3. Remove from active set
+        redisCommand(m_pContext, "SREM ACTIVE_CALLS %s", callId.c_str());
+
+        // 4. Update devices → IDLE
+        redisCommand(m_pContext,
+            "HSET DEVICE:%s status IDLE current_call - last_call %s",
+            session->callerUser.c_str(),
+            callId.c_str()
+        );
+
+        redisCommand(m_pContext,
+            "HSET DEVICE:%s status IDLE current_call - last_call %s",
+            session->calleeUser.c_str(),
+            callId.c_str()
+        );
+
+        // 5. Store user history
+        redisCommand(m_pContext,
+            "SADD USER:%s:CALLS %s",
+            session->callerUser.c_str(),
+            callId.c_str()
+        );
+
+        redisCommand(m_pContext,
+            "SADD USER:%s:CALLS %s",
+            session->calleeUser.c_str(),
+            callId.c_str()
+        );
+    }
+    catch (const std::exception &e) {
+        m_pDailyLog->WriteLog(kGeneralError, "ERROR: onCallEnd: " + std::string(e.what())); 
     }
 }
