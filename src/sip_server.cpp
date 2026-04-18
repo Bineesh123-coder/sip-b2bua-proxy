@@ -12,6 +12,7 @@ SIPServer::SIPServer()
         m_pUDPSocket = new UDPSocket(5060, false);
         m_callsessionManager = nullptr;
         m_envReader = new EnvReader(); // Create a new environment reader instance
+        m_pContext = nullptr;
         //m_serverIP ="192.168.2.225";
         //m_sDataPath="/opt/app/DATA";
         //m_log = 1;
@@ -62,6 +63,13 @@ void SIPServer::DeleteMemory()
             m_pDailyLog->WriteLog(kGeneralError, "SIPServer::DeleteMemory(): Deleted m_envReader");
         }
         m_envReader = nullptr; // Prevents dangling pointer 
+
+         // Disconnect from the server
+        if (m_pContext)
+        {
+            redisFree(m_pContext);
+        }
+        m_pContext = nullptr;
 
         m_pDailyLog->WriteLog(kGeneralError, "================================END================================");
 
@@ -134,9 +142,9 @@ int  SIPServer::Start()
     {   
         if(m_bStopped)
         {   
-            m_pDailyLog = new Clogger(m_sDataPath, m_debugLevel, m_log, "Sip_Server");
-            printf("CREATING LOG FILE\n");
-            m_pDailyLog->CreateLog();
+            // m_pDailyLog = new Clogger(m_sDataPath, m_debugLevel, m_log, "Sip_Server");
+            // printf("CREATING LOG FILE\n");
+            // m_pDailyLog->CreateLog();
             //Read environment settings for the sip server
             if (ReadSipServerSettingsENV() == kFailure)
             {
@@ -254,6 +262,7 @@ int SIPServer::Connect_to_Redis()
             freeReplyObject(authReply);
         }
 
+        
         //ExecuteRedisCommand("PING");
         // Send PING command
         redisReply* reply = (redisReply*)redisCommand(m_pContext, "PING");
@@ -277,6 +286,17 @@ int SIPServer::Connect_to_Redis()
             case REDIS_REPLY_STATUS:
                 //std::cout << "SIPServer::PING Status: " << reply->str << std::endl;
                 m_pDailyLog->WriteLog(kGeneralError, "SIPServer::Redis PING Status: " + std::string(reply->str ? reply->str : "null"));
+                if (reply->str != nullptr) {
+                // This is where "PONG" usually lives
+                    m_pDailyLog->WriteLog(kGeneralError, "SIPServer::Redis PING Status: " + std::string(reply->str));
+                } 
+                //else {
+                //     // Log the internal type and length to see what Hiredis is actually seeing
+                //     std::string debugInfo = "Type: " + std::to_string(reply->type) + 
+                //                             " | Len: " + std::to_string(reply->len);
+                //     m_pDailyLog->WriteLog(kGeneralError, "SIPServer::Redis PING Status: str was NULL. " + debugInfo);
+                // }
+                //break;
                 break;
 
             case REDIS_REPLY_INTEGER:

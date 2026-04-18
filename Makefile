@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -g -Iinclude
+CXXFLAGS = -std=c++17 -Wall -Wextra -g -Iinclude -I/usr/local/include/hiredis
 LIBS = -lpcap -lhiredis
 
 SRC = \
