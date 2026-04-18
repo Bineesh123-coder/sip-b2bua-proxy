@@ -1,302 +1,170 @@
-# sip-b2bua-proxy
-SIP B2BUA Proxy Engine – High-Performance C++ with RTP Media Relay & Real-Time Monitoring
+🚀 SIP B2BUA Proxy Engine
 
-Built a high-performance SIP B2BUA proxy in C++ handling real-time call signaling and RTP media relay. Implemented session management, bidirectional RTP forwarding, and Redis-based monitoring for live call metrics. Load-tested system using SIPp with concurrent call simulation and optimized for low-latency packet processing.
+High-Performance C++ SIP Proxy with RTP Relay & Real-Time Monitoring
 
-Insatll sipp 
+📌 Overview
 
-✅ Step 1: Clone stable version (NOT master)
-git clone https://github.com/SIPp/sipp.git
-cd sipp
-git checkout v3.7.3
+This project is a SIP Back-to-Back User Agent (B2BUA) built in C++, designed to handle real-time VoIP call signaling and RTP media relay with high performance and low latency.
 
-👉 This avoids the broken test dependency issue
+It simulates a production-grade SIP server by managing:
 
-✅ Step 2: Build normally
-cmake .
-make -j$(nproc)
-✅ Step 3: Install
-sudo make install
-✅ Step 4: Verify
-sipp -v
+SIP signaling (INVITE, REGISTER, BYE, etc.)
+RTP packet forwarding (bidirectional media relay)
+Call session lifecycle
+Real-time monitoring using Redis
 
+⚙️ Features
 
-sip-b2bua-proxy-engine/
-│
-├── src/
-│   ├── main.cpp
-│   │
-│   ├── sip/
-│   │   ├── sip_server.cpp
-│   │   ├── sip_server.h
-│   │   ├── sip_parser.cpp
-│   │   ├── sip_parser.h
-│   │   ├── sip_message.h
-│   │
-│   ├── rtp/
-│   │   ├── rtp_relay.cpp
-│   │   ├── rtp_relay.h
-│   │
-│   ├── session/
-│   │   ├── call_session.cpp
-│   │   ├── call_session.h
-│   │   ├── session_manager.cpp
-│   │   ├── session_manager.h
-│   │ 
-│   ├── network/
-│   │   ├── udp_socket.cpp
-│   │   ├── udp_socket.h
-│   │
-│   ├── redis/
-│   │   ├── redis_client.cpp
-│   │   ├── redis_client.h
-│   │
-│   ├── utils/
-│   │   ├── logger.cpp
-│   │   ├── logger.h
-│
-├── include/   (optional, if you separate headers)
-│
-├── config/
-│   ├── config.json
-│
-├── tests/
-│
-├── Makefile
-├── README.md
+📞 SIP Signaling
+Handles core SIP methods:
+REGISTER
+INVITE
+ACK
+BYE
+B2BUA architecture (acts as both client & server)
+Session-based call handling
 
+🎧 RTP Media Relay
 
-test call
-sipp -sn uac 127.0.0.1:5060
+Bidirectional RTP forwarding (Caller ↔ Callee)
+Dynamic RTP port allocation
+Real-time packet routing
+Lightweight and optimized loop for low latency
 
+📊 Real-Time Monitoring (Redis)
 
-✅ 2. REAL TEST (RECOMMENDED)
+Live call tracking
+Device state management
+Call Detail Records (CDR)
+Redis Data Model:
+ACTIVE_CALLS → Set of active call IDs
+CALL:<id> → Live call metrics
+DEVICE:<user> → Device state (IDLE, BUSY)
+CDR:<id> → Final call summary
+USER:<user>:CALLS → Call history
 
-👉 Use 2 instances of SIPp
+📈 Call Metrics
 
-🧪 Step 1: Start UAS (Receiver)
-sipp -sn uas -i 127.0.0.1 -p 5061
-🧪 Step 2: Start Your Server
-./sip_proxy
-🧪 Step 3: Start UAC (Caller)
-sipp -sn uac 127.0.0.1:5060
-🔥 Now Flow is:
-UAC → YOU → UAS
-INVITE →
+Packet count (in/out)
+Packet loss
+Average jitter
+Call duration
 
-UAS → YOU → UAC
-200 OK ←
+🧠 Session Management
 
-UAC → YOU → UAS
-ACK →
+Tracks full call lifecycle
+Handles duplicate INVITE protection
+Maintains RTP session state
+Safe call termination handling
 
-✔ This is real SIP behavior
+🏗️ Architecture
 
+Caller (SIPp/Phone)
+        │
+        ▼
+   ┌──────────────┐
+   │   B2BUA      │
+   │ (C++ Server) │
+   └──────┬───────┘
+          │
+          ▼
+Callee (SIPp/Phone)
 
-# terminal 1
-sipp -sn uas -p 5061
+        │
+        ▼
+   RTP Relay Engine
+ (Bidirectional Media)
 
-# terminal 2
-./sip_proxy
+        │
+        ▼
+      Redis
+ (Live + History Data)
 
-# terminal 3
-sipp -sn uac 127.0.0.1:5060 -trace_msg
+🛠️ Technologies Used
 
+C++ (Core Implementation)
+UDP Sockets (SIP + RTP)
+Redis (Monitoring & Data Storage)
+SIP Protocol (RFC 3261)
+RTP Protocol
 
-✅ FULL CORRECT TEST (CLEAN)
-🧪 Terminal 1 (UAS)
+▶️ How to Run
 
-sipp -sn uas -p 5061
+1️⃣ Start Redis
+redis-server
 
-🧪 Terminal 2 (Your Server)
+2️⃣ Build Project
+make clean
+make
 
-./sip_proxy
+3️⃣ Run Server
+./sip-server
 
-🧪 Terminal 3 (UAC → ONLY ONE CALL)
+🧪 Testing
 
-sipp -sn uac 127.0.0.1:5060 -m 1 -trace_msg
+🔹 Manual Testing (Softphones)
+Register two users (e.g., 1001, 1005)
+Make call → verify audio + logs
+🔹 Load Testing (Recommended)
 
-for cancel 
+Use SIP traffic generator:
 
-sipp -sf uas_delay.xml -p 5061
-
-./sip_proxy
-
-sipp -sn uac 127.0.0.1:5060 -m 1 -timeout 2000 -trace_msg
-
-
-# Terminal 1
-sipp -sf uas_delay.xml -p 5061
-
-# Terminal 2
-./sip_proxy
-
-# Terminal 3
-sipp -sf uac_cancel.xml 127.0.0.1:5060 -p 5062 -m 1 -trace_msg
-
-
-🔥 STEP 2 — RUN SIPp WITH RTP
-Terminal 1 (UAS)
-sipp -sn uas -p 5061 -rtp_echo
-Terminal 2 (Proxy)
-./sip_proxy
-Terminal 3 (UAC)
-sipp -sn uac 127.0.0.1:5060 -m 1 -rtp_echo -trace_msg
-sipp -sn uac 192.168.2.255:5060 -m 1 -rtp_echo -trace_msg
-sipp -sn uac 192.168.1.7:5060 -m 1 -rtp_echo -trace_msg
-
-
-chmod -R 777 /opt/app/DATA/LOG/Sip_Server
-
-
-Caller              B2BUA               Callee
-  | INVITE --------> |                   |
-  |                 | INVITE ---------> |
-  |                 | <------ 100 ------|
-  | <------ 100 ----|                   |
-  |                 | <------ 180 ------|
-  | <------ 180 ----|                   |
-  |                 | <------ 200 ------|
-  | <------ 200 ----|                   |
-  | ACK ----------> |                   |
-  |                 | ACK ----------->  |
-  | RTP <=========> | <=============>   |
-  | BYE ----------> |                   |
-  |                 | BYE ----------->  |
-  |                 | <------ 200 ------|
-  | <------ 200 ----|                   |
-
-
-
-1001 REGISTER → 200 OK
-1004 REGISTER → 200 OK
-
-1004 → INVITE → Proxy
-Proxy → 100 Trying → 1004
-
-Proxy → INVITE → 1001
-
-1001 → 100 Trying → Proxy → 1004
-1001 → 180 Ringing → Proxy → 1004
-1001 → 200 OK → Proxy → 1004
-
-1004 → ACK → Proxy → 1001
-
- CALL ESTABLISHED
-
-
-✅ Correct commands (use these)
-🔍 1. See ALL keys (you already did)
+sipp <server-ip>:5060 -sn uac -s 1001 -r 5 -m 50 -rtp_echo
+Parameters:
+-r → Calls per second
+-m → Total calls
+-rtp_echo → RTP testing
+🔍 Redis Debug Commands
 KEYS *
-🔍 2. Check full data of a key (IMPORTANT)
-For HASH (like DEVICE, CDR, CALL)
 HGETALL DEVICE:1001
-HGETALL CDR:tdSDu_DQl81QfRTjUT5gPQ..
-
-👉 This shows everything inside
-
-🔍 3. Get specific field
-HGET DEVICE:1001 status
-HGET DEVICE:1001 current_call
-🔍 4. Check if key exists
-EXISTS DEVICE:1001
-🔍 5. Check key type (VERY USEFUL)
-TYPE DEVICE:1001
-
-Output:
-
-hash
-🔍 6. Check user call history
-SMEMBERS USER:1001:CALLS
-🔍 7. Check active calls
 SMEMBERS ACTIVE_CALLS
-🔍 8. Check all device keys
-KEYS DEVICE:*
-🔍 9. Check registration (your old structure)
-HGETALL REG:1001
-
- KEYS *
-TYPE DEVICE:1001
-HGETALL DEVICE:1001
-HGET DEVICE:1001 status
 SMEMBERS USER:1001:CALLS
-SMEMBERS ACTIVE_CALLS
+HGETALL CDR:<callId>
 
+📊 Example Call Summary
+===== CALL SUMMARY =====
+Call-ID      : abc123
+Caller       : 1005
+Callee       : 1001
+Duration     : 45 seconds
+Total Packets: 4575
+Packet Loss  : 3
+Avg Jitter   : 3.14 ms
 
-HSET SIP_SERVER_SETTINGS DATADRIVE /opt/app/DATA END_RTP 50000 LOG 1 LOGGER_STATUS 40 REDIS_HOST 127.0.0.1 REDIS_PASSWORD "" REDIS_PORT 6379 REDIS_USERNAME "" SERVER_IP 192.168.1.7 SIP_PORT 5060 START_RTP 40000
+⚡ Performance Highlights
 
+Handles concurrent SIP sessions efficiently
+Optimized RTP loop (minimal latency)
+Supports load testing with multiple simultaneous calls
+Real-time monitoring without blocking RTP thread
 
-🔑 BASIC REDIS COMMAND PURPOSE
-🔍 KEYS *
+⚠️ Known Limitations
 
-👉 Shows all keys in Redis
+No NAT traversal (STUN/TURN not implemented)
+Basic SDP handling
+No TLS/SRTP support
+Simple Redis schema (can be extended)
+🚀 Future Improvements
+Add Web Dashboard (live call monitoring)
+RTP jitter buffer implementation
+NAT traversal support
+Async Redis (pipeline / pub-sub)
+Call recording support
+🎯 Project Goal
 
-✔ Use when:
+To simulate a real-world telecom backend system with:
 
-you want to see everything stored
-debugging your system
-🔍 TYPE DEVICE:1001
+Real-time signaling
+Media handling
+Monitoring & analytics
+👨‍💻 Author
 
-👉 Tells what kind of data this key is
+Bineesh M B
 
-✔ Output:
+💬 Final Note
 
-hash → use HGET/HGETALL
-set → use SMEMBERS
+This project demonstrates:
 
-✔ Use when:
-
-you don’t know how to read a key
-🔍 HGETALL DEVICE:1001
-
-👉 Gets ALL data inside a hash
-
-✔ Use when:
-
-you want full device info
-debugging device state
-
-Example:
-
-status: IDLE
-current_call: -
-last_call: abc123
-🔍 HGET DEVICE:1001 status
-
-👉 Gets ONE field from a hash
-
-✔ Use when:
-
-you only need one value
-faster than HGETALL
-🔍 SMEMBERS USER:1001:CALLS
-
-👉 Gets all values from a set
-
-✔ Use when:
-
-you want call history of a user
-list of all call IDs
-🔍 SMEMBERS ACTIVE_CALLS
-
-👉 Shows all active (ongoing) calls
-
-✔ Use when:
-
-monitoring live calls
-debugging stuck calls
-🧠 SIMPLE MEMORY TRICK
-KEYS       → what exists?
-TYPE       → what type?
-HGETALL    → full data
-HGET       → one value
-SMEMBERS   → list items
-🎯 REAL USAGE FLOW (HOW YOU DEBUG)
-
-When something goes wrong:
-
-KEYS *                  → see all data
-TYPE DEVICE:1001        → understand structure
-HGETALL DEVICE:1001     → full device state
-SMEMBERS ACTIVE_CALLS   → check live calls
-SMEMBERS USER:1001:CALLS → check history
+Strong understanding of SIP & RTP
+Real-time system design
+Backend performance optimization
